@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orbit Code</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar: File Explorer -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h2>📁 Explorer</h2>
+        <button id="refresh-btn" title="새로고침">🔄</button>
+      </div>
+      <div id="file-tree" class="file-tree">
+        <div class="loading">파일 로딩 중...</div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="main-content">
+      <!-- Tabs -->
+      <div id="tabs" class="tabs">
+        <div class="tab active" data-file="welcome">
+          <span>Welcome</span>
+          <button class="tab-close">×</button>
+        </div>
+      </div>
+
+      <!-- Editor -->
+      <div id="editor-container">
+        <div id="editor"></div>
+      </div>
+
+      <!-- Terminal Panel -->
+      <div id="terminal-panel" class="terminal-panel">
+        <div class="terminal-header">
+          <span>Terminal</span>
+          <button id="terminal-toggle">▼</button>
+        </div>
+        <div id="terminal" class="terminal"></div>
+      </div>
+    </main>
+
+    <!-- AI Chat Panel -->
+    <aside id="ai-panel" class="ai-panel">
+      <div class="ai-header">
+        <h2>🤖 AI Assistant</h2>
+        <button id="ai-toggle">◀</button>
+      </div>
+      <div id="ai-messages" class="ai-messages">
+        <div class="ai-message system">
+          <p>안녕하세요! Orbit Code AI입니다. 무엇을 도와드릴까요?</p>
+        </div>
+      </div>
+      <div class="ai-input-container">
+        <textarea id="ai-input" placeholder="AI에게 질문하세요..." rows="3"></textarea>
+        <button id="ai-send">전송</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Status Bar -->
+  <footer id="status-bar">
+    <div class="status-left">
+      <span id="status-mode">Normal</span>
+      <span id="status-file">No file</span>
+    </div>
+    <div class="status-right">
+      <span id="status-cursor">Ln 1, Col 1</span>
+      <span id="status-lang">Plain Text</span>
+      <span>UTF-8</span>
+    </div>
+  </footer>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
