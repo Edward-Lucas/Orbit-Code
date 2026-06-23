@@ -11,60 +11,7 @@ import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { json } from '@codemirror/lang-json';
 import { EditorState } from '@codemirror/state';
-
-// IPC Client for Go communication
-class IPCClient {
-  private baseUrl: string;
-
-  constructor(port: number = 9090) {
-    this.baseUrl = `http://localhost:${port}`;
-  }
-
-  async send(method: string, payload: any): Promise<any> {
-    const id = crypto.randomUUID();
-    const response = await fetch(`${this.baseUrl}/ipc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, type: 'request', method, payload }),
-    });
-    return response.json();
-  }
-
-  async health(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/health`);
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
-}
-
-// File Manager
-class FileManager {
-  private files: Map<string, string> = new Map();
-  private currentFile: string | null = null;
-
-  async loadFileTree(path: string): Promise<void> {
-    // IPC를 통해 파일 트리 로드
-    console.log('Loading file tree:', path);
-  }
-
-  async openFile(path: string): Promise<string> {
-    // IPC를 통해 파일 내용 로드
-    const content = await this.ipc.send('file.read', { path });
-    this.currentFile = path;
-    return content.data;
-  }
-
-  setCurrentFile(path: string): void {
-    this.currentFile = path;
-  }
-
-  getCurrentFile(): string | null {
-    return this.currentFile;
-  }
-}
+import { ipc, IPCClient } from './ipc';
 
 // Language Detector
 function getLanguageExtension(filename: string) {
@@ -90,23 +37,35 @@ function getLanguageExtension(filename: string) {
   }
 }
 
+// File Tree Node
+interface FileNode {
+  name: string;
+  path: string;
+  isDir: boolean;
+  children?: FileNode[];
+  size?: number;
+}
+
 // Main App
 class OrbitCodeApp {
   private editor: EditorView | null = null;
   private ipc: IPCClient;
-  private fileManager: FileManager;
   private openFiles: Map<string, string> = new Map(); // path -> content
+  private currentFile: string | null = null;
 
   constructor() {
-    this.ipc = new IPCClient();
-    this.fileManager = new FileManager();
+    this.ipc = ipc;
     this.init();
   }
 
-  private init(): void {
+  private async init(): Promise<void> {
     this.initEditor();
     this.initEventListeners();
     this.loadWelcomeContent();
+
+    // 파일 트리 로드
+    await this.loadFileTree();
+
     console.log('Orbit Code initialized');
   }
 
@@ -141,7 +100,7 @@ class OrbitCodeApp {
   private initEventListeners(): void {
     // File tree refresh
     document.getElementById('refresh-btn')?.addEventListener('click', () => {
-      this.refreshFileTree();
+      this.loadFileTree();
     });
 
     // AI Send button
@@ -224,11 +183,91 @@ console.log(greet('Developer'));
     }
   }
 
+  private async loadFileTree(): Promise<void> {
+    try {
+      const fileTree = await this.ipc.getFileTree();
+      this.renderFileTree(fileTree);
+    } catch (error) {
+      console.error('Failed to load file tree:', error);
+      // 에러 시 더미 데이터 표시
+      this.renderFileTree({
+        name: 'root',
+        path: '.',
+        isDir: true,
+        children: [
+          { name: 'src', path: 'src', isDir: true, children: [] },
+          { name: 'package.json', path: 'package.json', isDir: false },
+        ],
+      });
+    }
+  }
+
+  private renderFileTree(node: FileNode, container?: HTMLElement): void {
+    const fileTree = document.getElementById('file-tree');
+    if (!fileTree) return;
+
+    if (!container) {
+      fileTree.innerHTML = '';
+      container = fileTree;
+    }
+
+    const item = document.createElement('div');
+    item.className = `file-item ${node.isDir ? 'folder' : 'file'}`;
+
+    const icon = node.isDir ? '📁' : this.getFileIcon(node.name);
+    item.innerHTML = `
+      <span class="icon">${icon}</span>
+      <span class="name">${node.name}</span>
+    `;
+
+    if (!node.isDir) {
+      item.addEventListener('click', () => {
+        this.openFile(node.path);
+      });
+    } else if (node.children && node.children.length > 0) {
+      const childrenContainer = document.createElement('div');
+      childrenContainer.className = 'children';
+      childrenContainer.style.display = 'none';
+
+      node.children.forEach(child => {
+        this.renderFileTree(child, childrenContainer);
+      });
+
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = childrenContainer.style.display === 'none';
+        childrenContainer.style.display = isHidden ? 'block' : 'none';
+        item.querySelector('.icon')!.textContent = isHidden ? '📂' : '📁';
+      });
+
+      container.appendChild(item);
+      container.appendChild(childrenContainer);
+      return;
+    }
+
+    container.appendChild(item);
+  }
+
+  private getFileIcon(filename: string): string {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const iconMap: Record<string, string> = {
+      js: '📜',
+      ts: '📘',
+      py: '🐍',
+      html: '🌐',
+      css: '🎨',
+      json: '📋',
+      md: '📝',
+      go: '🔵',
+      rs: '🦀',
+    };
+    return iconMap[ext || ''] || '📄';
+  }
+
   private onDocumentChanged(): void {
     // 문서 변경 시 처리
-    const currentFile = this.fileManager.getCurrentFile();
-    if (currentFile && this.editor) {
-      this.openFiles.set(currentFile, this.editor.state.doc.toString());
+    if (this.currentFile && this.editor) {
+      this.openFiles.set(this.currentFile, this.editor.state.doc.toString());
     }
   }
 
@@ -241,7 +280,15 @@ console.log(greet('Developer'));
 
   async openFile(path: string): Promise<void> {
     try {
-      const content = await this.fileManager.openFile(path);
+      // 이미 열려있는 파일인지 확인
+      if (this.openFiles.has(path)) {
+        this.switchTab(path);
+        return;
+      }
+
+      const content = await this.ipc.readFile(path);
+      this.openFiles.set(path, content);
+
       if (this.editor) {
         this.editor.dispatch({
           changes: {
@@ -257,6 +304,9 @@ console.log(greet('Developer'));
 
       // 상태 바 업데이트
       this.updateFileStatus(path);
+
+      // 현재 파일 업데이트
+      this.currentFile = path;
     } catch (error) {
       console.error('Failed to open file:', error);
     }
@@ -306,6 +356,9 @@ console.log(greet('Developer'));
           insert: content,
         },
       });
+
+      this.currentFile = path;
+      this.updateFileStatus(path);
     }
   }
 
@@ -315,6 +368,18 @@ console.log(greet('Developer'));
     if (tab) {
       tab.remove();
       this.openFiles.delete(path);
+
+      // 닫힌 탭이 현재 파일이면 다른 탭으로 전환
+      if (this.currentFile === path) {
+        const remainingTabs = tabs?.querySelectorAll('.tab');
+        if (remainingTabs && remainingTabs.length > 0) {
+          const lastTab = remainingTabs[remainingTabs.length - 1] as HTMLElement;
+          this.switchTab(lastTab.dataset.file!);
+        } else {
+          this.currentFile = null;
+          this.loadWelcomeContent();
+        }
+      }
     }
   }
 
@@ -340,11 +405,6 @@ console.log(greet('Developer'));
       };
       statusLang.textContent = langMap[ext || ''] || 'Plain Text';
     }
-  }
-
-  private async refreshFileTree(): Promise<void> {
-    console.log('Refreshing file tree...');
-    // IPC를 통해 파일 트리 새로고침
   }
 
   private async sendAIMessage(): Promise<void> {
@@ -373,15 +433,19 @@ console.log(greet('Developer'));
 
     // IPC를 통해 AI에게 전송
     try {
+      const context = this.editor?.state.doc.toString() || '';
       const response = await this.ipc.send('ai.chat', {
         message: userMessage,
-        context: this.editor?.state.doc.toString() || '',
+        context: context,
       });
 
       assistantDiv.innerHTML = `<p>${response.data?.response || '응답을 생성할 수 없습니다.'}</p>`;
     } catch (error) {
       assistantDiv.innerHTML = `<p>오류가 발생했습니다: ${error}</p>`;
     }
+
+    // 스크롤
+    messages.scrollTop = messages.scrollHeight;
   }
 }
 

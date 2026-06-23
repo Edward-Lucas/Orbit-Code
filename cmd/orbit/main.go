@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/Edward-Lucas/Orbit-Code/internal/desktop"
+	"github.com/Edward-Lucas/Orbit-Code/internal/editor"
 	"github.com/Edward-Lucas/Orbit-Code/internal/ipc"
 )
 
@@ -31,8 +32,14 @@ func main() {
 	fmt.Printf("Orbit Code - AI-Powered Code Editor\n")
 	fmt.Printf("Project: %s\n", absPath)
 
+	// 파일 매니저 생성
+	fileManager := editor.NewFileManager(absPath)
+
 	// IPC 서버 시작
 	ipcServer := ipc.NewServer()
+
+	// 파일 핸들러 등록
+	ipc.RegisterFileHandlers(ipcServer, fileManager)
 
 	// 데스크탑 앱 시작
 	app := desktop.NewApp(absPath, ipcServer)
