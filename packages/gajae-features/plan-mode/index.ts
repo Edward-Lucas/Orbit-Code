@@ -2,9 +2,12 @@
  * Plan Mode State for Orbit Code
  *
  * Manages plan mode state for structured planning workflows.
- * Ported from gajae-code plan-mode/state.ts,
- * adapted for Orbit Code.
+ * Ported from gajae-code plan-mode/approved-plan.ts + state.ts,
+ * adapted for Orbit Code. No external dependencies.
  */
+
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 
 export interface PlanModeState {
 	enabled: boolean
@@ -90,4 +93,73 @@ export function humanizePlanTitle(title: string): string {
 	const spaced = title.replace(/[-_]+/g, " ").trim()
 	if (!spaced) return ""
 	return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+// ─── Plan Approval ──────────────────────────────────────────────────────────
+
+/**
+ * Shape forwarded from the plan-mode resolve handler to the approval popup.
+ * Ported from gajae-code plan-mode/approved-plan.ts.
+ */
+export interface PlanApprovalDetails {
+	planFilePath: string
+	finalPlanFilePath: string
+	title: string
+	planExists: boolean
+}
+
+interface RenameApprovedPlanFileOptions {
+	planFilePath: string
+	finalPlanFilePath: string
+	getArtifactsDir: () => string | null
+	getSessionId: () => string | null
+}
+
+function assertLocalUrl(urlPath: string, label: "source" | "destination"): void {
+	if (!urlPath.startsWith("local:/") && !urlPath.startsWith("local://")) {
+		throw new Error(`Approved plan ${label} path must use local: scheme (received ${urlPath}).`)
+	}
+}
+
+/**
+ * Rename an approved plan file from its working path to its final path.
+ * Ported from gajae-code plan-mode/approved-plan.ts.
+ */
+export async function renameApprovedPlanFile(options: RenameApprovedPlanFileOptions): Promise<void> {
+	const { planFilePath, finalPlanFilePath, getArtifactsDir, getSessionId } = options
+	assertLocalUrl(planFilePath, "source")
+	assertLocalUrl(finalPlanFilePath, "destination")
+
+	const artifactsDir = getArtifactsDir()
+	const sessionId = getSessionId()
+	if (!artifactsDir || !sessionId) {
+		throw new Error("Artifacts directory and session ID are required for plan file rename.")
+	}
+
+	const resolvedSource = path.join(artifactsDir, sessionId, planFilePath.replace(/^local:\/+/", ""))
+	const resolvedDestination = path.join(artifactsDir, sessionId, finalPlanFilePath.replace(/^local:\/+/", ""))
+
+	if (resolvedSource === resolvedDestination) return
+
+	try {
+		const destinationStat = await fs.stat(resolvedDestination)
+		if (destinationStat.isFile()) {
+			throw new Error(
+				`Plan destination already exists at ${finalPlanFilePath}. Choose a different title.`,
+			)
+		}
+		throw new Error(`Plan destination exists but is not a file: ${finalPlanFilePath}`)
+	} catch (error: unknown) {
+		if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code !== "ENOENT") {
+			throw error
+		}
+	}
+
+	try {
+		await fs.rename(resolvedSource, resolvedDestination)
+	} catch (error) {
+		throw new Error(
+			`Failed to rename approved plan from ${planFilePath} to ${finalPlanFilePath}: ${error instanceof Error ? error.message : String(error)}`,
+		)
+	}
 }
