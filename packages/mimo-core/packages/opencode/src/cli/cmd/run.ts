@@ -21,6 +21,7 @@ import { EditTool } from "../../tool/edit"
 import { WriteTool } from "../../tool/write"
 import { CodeSearchTool } from "../../tool/codesearch"
 import { WebSearchTool } from "../../tool/websearch"
+import { CoordinatorTool } from "../../tool/coordinator"
 import { SkillTool } from "../../tool/skill"
 import { BashTool } from "../../tool/bash"
 import { Locale } from "../../util"
@@ -158,7 +159,7 @@ function websearch(info: ToolProps<typeof WebSearchTool>) {
   })
 }
 
-function task(info: ToolProps<typeof ActorTool>) {
+function task(info: ToolProps<typeof CoordinatorTool>) {
   const op = (info.part.state.input as any)?.operation ?? info.part.state.input
   const status = info.part.state.status
   const subagent =
@@ -405,7 +406,7 @@ export const RunCommand = cmd({
           if (part.tool === "edit") return edit(props<typeof EditTool>(part))
           if (part.tool === "codesearch") return codesearch(props<typeof CodeSearchTool>(part))
           if (part.tool === "websearch") return websearch(props<typeof WebSearchTool>(part))
-          if (part.tool === "actor") return task(props<typeof ActorTool>(part))
+          if (part.tool === "coordinator") return task(props<typeof CoordinatorTool>(part))
           if (part.tool === "skill") return skill(props<typeof SkillTool>(part))
           return fallback(part)
         } catch {
@@ -473,12 +474,12 @@ export const RunCommand = cmd({
 
               if (
                 part.type === "tool" &&
-                part.tool === "actor" &&
+                part.tool === "coordinator" &&
                 part.state.status === "running" &&
                 args.format !== "json"
               ) {
                 if (toggles.get(part.id) === true) continue
-                task(props<typeof ActorTool>(part))
+                task(props<typeof CoordinatorTool>(part))
                 toggles.set(part.id, true)
               }
 

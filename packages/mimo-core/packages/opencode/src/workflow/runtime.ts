@@ -329,14 +329,8 @@ export const layer = Layer.effect(
     // kept (success+changed) worktrees are the deliverable and must survive.
     const reclaim = (entry: RunEntry) =>
       Effect.gen(function* () {
-        const actor = spawnRef.current
-        if (actor) {
-          yield* Effect.forEach(
-            [...entry.childActorIDs],
-            (childID) => actor.cancel(entry.sessionID, childID, "graceful").pipe(Effect.ignore),
-            { concurrency: "unbounded", discard: true },
-          )
-        }
+        // Actor spawnRef removed (Actor system replaced by Coordinator).
+        // Child actor cancellation will be handled by Coordinator session management.
         yield* Effect.forEach(
           [...entry.worktrees],
           (directory) => worktree.remove({ directory }).pipe(Effect.ignore),
@@ -509,10 +503,7 @@ export const layer = Layer.effect(
         ).pipe(
           Effect.flatMap((r) =>
             r === (STRAGGLER_TIMEOUT as unknown)
-              ? (spawnRef.current
-                  ? spawnRef.current.cancel(input.sessionID, actorID, "graceful").pipe(Effect.ignore)
-                  : Effect.void
-                ).pipe(
+              ? Effect.void.pipe(
                   Effect.tap(() =>
                     Effect.sync(() => {
                       try {
@@ -576,7 +567,6 @@ export const layer = Layer.effect(
       // of parent history (parallel fan-out is the use case). NEVER throw to the
       // guest for spawn/turn failures — resolve to null so the script continues.
       const spawnShared = async (
-        actor: NonNullable<typeof spawnRef.current>,
         prompt: string,
         o: AgentOpts,
         resolvedModel: { providerID: ProviderID; modelID: ModelID } | undefined,
@@ -667,7 +657,6 @@ export const layer = Layer.effect(
 
       // Isolated spawn: fresh worktree, file tools rebound to it via Instance.provide.
       const spawnIsolated = async (
-        actor: NonNullable<typeof spawnRef.current>,
         prompt: string,
         o: AgentOpts,
         resolvedModel: { providerID: ProviderID; modelID: ModelID } | undefined,
@@ -848,14 +837,13 @@ export const layer = Layer.effect(
                   return null
                 }
                 entry.agentCount++
-                const actor = spawnRef.current
-                if (!actor) throw new Error("Actor service unavailable")
+                // Actor spawnRef removed (Actor system replaced by Coordinator).
                 // Resolve the guest's model ref host-side AFTER the journal key was
                 // computed above (the key hashes the raw `o.model` ref, NOT the
                 // resolved struct, so resume keys stay stable across config changes).
                 // Never-throws: an unknown group falls back to input.model.
                 const resolvedModel = await bridge.promise(resolveAgentModel(o.model, input.model, entry.warnedModelRefs))
-                return spawnShared(actor, promptStr, o, resolvedModel)
+                return spawnShared(promptStr, o, resolvedModel)
               }),
             )
             // Cache successful results only (null = failure/spawn-reject/killed →
@@ -881,12 +869,11 @@ export const layer = Layer.effect(
               return null
             }
             entry.agentCount++
-            const actor = spawnRef.current
-            if (!actor) throw new Error("Actor service unavailable")
+            // Actor spawnRef removed (Actor system replaced by Coordinator).
             // Resolve the guest's model ref host-side (isolated agents aren't
             // journaled, so there's no key to keep stable here). Never-throws.
             const resolvedModel = await bridge.promise(resolveAgentModel(o.model, input.model, entry.warnedModelRefs))
-            return spawnIsolated(actor, promptStr, o, resolvedModel)
+            return spawnIsolated(promptStr, o, resolvedModel)
           }),
         )
       }
