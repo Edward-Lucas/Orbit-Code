@@ -222,6 +222,9 @@ export function coordinatorNamespacePath(config: CoordinatorMcpConfig): string {
   );
 }
 
+export const COORDINATOR_MUTATION_CLASSES: readonly CoordinatorMutationClass[] =
+  ["sessions", "questions", "reports"];
+
 // ─── Safety Policy Factory ───────────────────────────────────────────────────
 
 function toSafetyConfig(config: CoordinatorMcpConfig): CoordinatorSafetyConfig {
