@@ -160,14 +160,13 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Se
 export const layer: Layer.Layer<
   Service,
   never,
-  Config.Service | Session.Service | SessionCheckpoint.Service | ActorRegistry.Service
+  Config.Service | Session.Service | SessionCheckpoint.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
     const config = yield* Config.Service
     const session = yield* Session.Service
     const checkpoint = yield* SessionCheckpoint.Service
-    const actorReg = yield* ActorRegistry.Service
 
     // Per-session state: which checkpoint thresholds have already been crossed
     // (and had a checkpoint writer enqueued). Prevents re-firing on the same
@@ -472,7 +471,6 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Session.defaultLayer),
     Layer.provide(Config.defaultLayer),
     Layer.provide(SessionCheckpoint.defaultLayer),
-    Layer.provide(ActorRegistry.defaultLayer),
   ),
 )
 

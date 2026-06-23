@@ -1283,17 +1283,9 @@ export const SessionRoutes = lazy(() =>
       ),
       async (c) => {
         const sessionID = c.req.valid("param").sessionID
-        const actors = await runRequest(
-          "SessionRoutes.actors",
-          c,
-          Effect.gen(function* () {
-            const reg = yield* ActorRegistry.Service
-            const session = yield* Session.Service
-            yield* session.get(sessionID)
-            return yield* reg.listBySession(sessionID)
-          }),
-        )
-        return c.json(actors)
+        // Actor listing removed — Coordinator system manages sessions.
+        // Return empty list for backwards compatibility.
+        return c.json([])
       },
     ),
 )

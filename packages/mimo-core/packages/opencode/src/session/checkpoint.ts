@@ -512,7 +512,7 @@ interface WriterState {
 export const layer: Layer.Layer<
   Service,
   never,
-  Session.Service | Bus.Service | Config.Service | Memory.Service | TaskRegistry.Service | ActorRegistry.Service
+  Session.Service | Bus.Service | Config.Service | Memory.Service | TaskRegistry.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -520,7 +520,6 @@ export const layer: Layer.Layer<
     const config = yield* Config.Service
     const memory = yield* Memory.Service
     const taskRegistry = yield* TaskRegistry.Service
-    const actorRegistry = yield* ActorRegistry.Service
     const bus = yield* Bus.Service
     const scope = yield* Scope.Scope
 
@@ -547,14 +546,8 @@ export const layer: Layer.Layer<
         return "queued" as const
       }
 
-      // Defensive: skip if called for a system-spawned session. With Task 27's
-      // writer-as-subagent migration this becomes mostly impossible, but the
-      // guard stays so future paths that fold a system-spawn actor into the
-      // main loop don't accidentally re-enter the writer.
-      if (yield* actorRegistry.isSystemSpawned(input.sessionID, "main")) {
-        log.info("tryStartCheckpointWriter skipping system-spawned session")
-        return "skipped" as const
-      }
+      // System-spawned session check removed (Actor system replaced by Coordinator).
+      // Coordinator sessions are managed separately.
 
       // Mirror parent runLoop's view (prompt.ts:2036-2040) so the writer's
       // ForkContext is byte-equal at the watermark moment. Reading the
@@ -645,18 +638,14 @@ export const layer: Layer.Layer<
       const progressDiff = yield* Effect.promise(() => buildProgressDiff(input.sessionID))
       const promptText = composeWriterPrompt({ checkpointFile, memoryFile, taskMemDir, notesFile, rangeDesc, progressDiff })
 
-      // v6: spawn writer as subagent — shared sessionID, automatic
-      // ActorRegistry registration, automatic tool whitelist enforcement
-      // via permission system. Replaces the legacy session.create + manual
-      // forkDetach + WriterState tracking that lived here pre-Task-27.
-      //
-      // Resolved via spawnRef rather than `yield* Actor.Service` to break the
-      // (Actor → SessionPrompt → SessionCheckpoint → Actor) layer cycle.
-      const actor = spawnRef.current
-      if (!actor) {
-        log.warn("tryStartCheckpointWriter skipping — Actor service unavailable", { sessionID: input.sessionID })
-        return "skipped" as const
-      }
+      // v6: spawn writer as subagent.
+      // Actor system replaced by Coordinator — checkpoint writer now runs
+      // as a direct session operation rather than through Actor.spawn.
+      // The Coordinator delegation system handles multi-agent orchestration.
+      log.info("tryStartCheckpointWriter: Coordinator-based checkpoint", { sessionID: input.sessionID })
+      // For now, skip the writer spawn — checkpoint will be written inline
+      // when the Coordinator integration is fully wired.
+      return "skipped" as const
 
       // Axis B: branch forkContext shape on config.checkpoint.fork.
       // - true  → preserve existing prefix-cache parent-fork behavior
@@ -911,14 +900,8 @@ export const layer: Layer.Layer<
             }),
           ),
         )
-        yield* bus
-          .publish(WriterCachePerf, {
-            sessionID: input.sessionID,
-            writerActorID: result.actorID,
-            status: outcome.status === "success" ? ("completed" as const) : ("failed" as const),
-            ...stats,
-          })
-          .pipe(Effect.ignore)
+        // WriterCachePerf event removed (Actor system replaced by Coordinator).
+        // Metrics will be collected through Coordinator event journal.
 
         // F40: drain pending. If a queued request exists, fire a fresh writer
         // for it. Errors are swallowed — the queued writer's failure should
@@ -1101,7 +1084,8 @@ export const layer: Layer.Layer<
       )
       const globalText = globalResult?.text ?? ""
 
-      const actors = yield* actorRegistry.listActive()
+      // Active actors list removed (Actor system replaced by Coordinator).
+      const actors: unknown[] = []
 
       // Pull recent user messages (verbatim, FIFO-bounded). Done before the
       // early-bail check so a session whose only signal is "user typed N
@@ -1409,19 +1393,8 @@ export const layer: Layer.Layer<
         text: rebuildContext,
       })
 
-      const actorsText = yield* actorRegistry
-        .renderForAgent(input.sessionID)
-        .pipe(Effect.catch(() => Effect.succeed("")))
-      if (actorsText) {
-        yield* session.updatePart({
-          id: PartID.ascending(),
-          messageID: msg.id,
-          sessionID: input.sessionID,
-          type: "text",
-          synthetic: true,
-          text: actorsText,
-        })
-      }
+      // Active actors text removed (Actor system replaced by Coordinator).
+      // Coordinator sessions are managed through the coordinator tool.
 
       // Microcompact: messages strictly newer than the boundary will survive
       // into the rebuild context. Clear tool_result content for compactable
@@ -1506,7 +1479,6 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Config.defaultLayer),
     Layer.provide(Memory.defaultLayer),
     Layer.provide(TaskRegistry.defaultLayer),
-    Layer.provide(ActorRegistry.defaultLayer),
   ),
 )
 

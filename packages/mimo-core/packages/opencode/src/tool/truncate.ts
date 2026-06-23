@@ -29,9 +29,9 @@ export interface Options {
   pressureCaps?: boolean
 }
 
-function hasActorTool(agent?: Agent.Info) {
-  if (!agent?.permission) return false
-  return evaluate("actor", "*", agent.permission).action !== "deny"
+function hasActorTool(_agent?: Agent.Info) {
+  // Actor tool removed — Coordinator system manages agent access.
+  return false
 }
 
 export interface Interface {

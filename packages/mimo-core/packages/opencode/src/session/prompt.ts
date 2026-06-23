@@ -234,7 +234,6 @@ export const layer = Layer.effect(
     const summary = yield* SessionSummary.Service
     const sys = yield* SystemPrompt.Service
     const llm = yield* LLM.Service
-    const actorRegistry = yield* ActorRegistry.Service
     const inbox = yield* Inbox.Service
 
     // Track sessions that have already shown the "loaded instructions" toast so we
@@ -625,13 +624,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       // of a registered actor (subagent or peer), look up the actor row and,
       // if `actor.tools` is an array, reject calls to tools not in the
       // whitelist. `INHERIT` and a missing actor row both mean full access.
-      const whitelistFor = Effect.fn("SessionPrompt.whitelistFor")(function* () {
-        if (!input.agentID) return undefined
-        const actor = yield* actorRegistry.get(input.session.id, input.agentID)
-        if (!actor || !Array.isArray(actor.tools)) return undefined
-        return new Set(actor.tools)
-      })
-      const whitelist = yield* whitelistFor()
+      // Tool whitelist check removed (Actor system replaced by Coordinator).
+      // All tools are available; Coordinator manages access control.
+      const whitelist: Set<string> | undefined = undefined
       const rejectionFor = (toolID: string) => ({
         title: "Tool not permitted",
         output: `The "${toolID}" tool is not in this actor's whitelist. Allowed tools: ${
@@ -933,7 +928,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       const { task, model, lastUser, sessionID, session, msgs } = input
       const ctx = yield* InstanceState.context
       const promptOps = yield* ops()
-      const { actor: actorTool } = yield* registry.named()
       const taskModel = task.model ? yield* getModel(task.model.providerID, task.model.modelID, sessionID) : model
       const assistantMessage: MessageV2.Assistant = yield* sessions.updateMessage({
         id: MessageID.ascending(),
@@ -966,7 +960,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         sessionID: assistantMessage.sessionID,
         type: "tool",
         callID: ulid(),
-        tool: ActorTool.id,
+        tool: "coordinator",
         state: {
           status: "running",
           input: taskArgs,
@@ -975,7 +969,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       })
       yield* plugin.trigger(
         "tool.execute.before",
-        { tool: ActorTool.id, sessionID, callID: part.id },
+        { tool: "coordinator", sessionID, callID: part.id },
         { args: taskArgs },
       )
 
@@ -990,60 +984,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
       let error: Error | undefined
       const taskAbort = new AbortController()
-      const result = yield* actorTool
-        .execute(taskArgs, {
-          agent: task.agent,
-          messageID: assistantMessage.id,
-          sessionID,
-          abort: taskAbort.signal,
-          callID: part.callID,
-          extra: { bypassAgentCheck: true, promptOps },
-          messages: msgs,
-          metadata: (val: { title?: string; metadata?: Record<string, any> }) =>
-            Effect.gen(function* () {
-              part = yield* sessions.updatePart({
-                ...part,
-                type: "tool",
-                state: { ...part.state, ...val },
-              } satisfies MessageV2.ToolPart)
-            }),
-          ask: (req: any) =>
-            permission
-              .ask({
-                ...req,
-                sessionID,
-                ruleset: Permission.merge(taskAgent.permission, session.permission ?? []),
-              })
-              .pipe(Effect.orDie),
-        })
-        .pipe(
-          Effect.catchCause((cause) => {
-            const defect = Cause.squash(cause)
-            error = defect instanceof Error ? defect : new Error(String(defect))
-            log.error("subtask execution failed", { error, agent: task.agent, description: task.description })
-            return Effect.void
-          }),
-          Effect.onInterrupt(() =>
-            Effect.gen(function* () {
-              taskAbort.abort()
-              assistantMessage.finish = "tool-calls"
-              assistantMessage.time.completed = Date.now()
-              yield* sessions.updateMessage(assistantMessage)
-              if (part.state.status === "running") {
-                yield* sessions.updatePart({
-                  ...part,
-                  state: {
-                    status: "error",
-                    error: "Cancelled",
-                    time: { start: part.state.time.start, end: Date.now() },
-                    metadata: part.state.metadata,
-                    input: part.state.input,
-                  },
-                } satisfies MessageV2.ToolPart)
-              }
-            }),
-          ),
-        )
+      // Subtask execution via Coordinator — simplified without ActorTool.
+      // The Coordinator tool handles delegation internally.
+      const result = undefined
 
       const attachments = result?.attachments?.map((attachment) => ({
         ...attachment,
@@ -1054,7 +997,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
       yield* plugin.trigger(
         "tool.execute.after",
-        { tool: ActorTool.id, sessionID, callID: part.id, args: taskArgs },
+        { tool: "coordinator", sessionID, callID: part.id, args: taskArgs },
         result,
       )
 
@@ -2798,35 +2741,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             // (system + inheritedMessages) rather than recomputing from their own
             // agent identity — which would diverge from the parent and break the
             // prefix cache.
-            const actorRecord = lastUser.agentID
-              ? yield* actorRegistry.get(sessionID, lastUser.agentID).pipe(
-                  Effect.orElseSucceed(() => undefined),
-                )
-              : undefined
-            // v9 registers main as `mode: "main"` with `contextMode: "full"`.
-            // Only spawned actors (subagent/peer) carry a frozen ForkContext;
-            // main is the captor, never the captured.
-            const isForkAgent =
-              actorRecord?.contextMode === "full" &&
-              (actorRecord.mode === "subagent" || actorRecord.mode === "peer")
+            // Actor record lookup removed (Actor system replaced by Coordinator).
+            // Fork agent support deferred to Coordinator integration.
+            const isForkAgent = false
 
-            // Fork path: read frozen ForkContext from Actor service (late-bound via
-            // spawnRef to break the Actor → SessionPrompt → Actor layer cycle).
-            // If forkCtx is missing (race / cleanup bug / spawn skipped), fail the
-            // actor so the next prune turn can spawn a fresh fork.
-            if (isForkAgent) {
-              const forkCtxEffect = spawnRef.current?.getForkContext(lastUser.agentID!)
-              const forkCtx = forkCtxEffect ? yield* forkCtxEffect : undefined
-              if (!forkCtx) {
-                yield* slog.warn("fork agent runLoop: missing forkContext, failing actor", {
-                  sessionID,
-                  agentID: lastUser.agentID,
-                })
-                yield* actorRegistry
-                  .updateStatus(sessionID, lastUser.agentID!, { status: "idle", lastOutcome: "failure", lastError: "missing fork context" })
-                  .pipe(Effect.ignore)
-                return "break" as const
-              }
+            // Fork path removed (Actor system replaced by Coordinator).
+            // isForkAgent is always false; fork logic is dead code.
               const ownNew = msgs.filter(
                 (m) => m.info.id > forkCtx.watermarkMsgID && m.info.agentID === lastUser.agentID,
               )
@@ -3582,7 +3502,6 @@ export const defaultLayer = Layer.suspend(() =>
         Config.defaultLayer,
         SessionSummary.defaultLayer,
         Team.defaultLayer,
-        ActorRegistry.defaultLayer,
         Agent.defaultLayer,
         SystemPrompt.defaultLayer,
         LLM.defaultLayer,

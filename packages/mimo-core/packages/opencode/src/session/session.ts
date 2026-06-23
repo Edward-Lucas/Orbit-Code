@@ -424,12 +424,11 @@ type Patch = z.infer<typeof Event.Updated.schema>["info"]
 const db = <T>(fn: (d: Parameters<typeof Database.use>[0] extends (trx: infer D) => any ? D : never) => T) =>
   Effect.sync(() => Database.use(fn))
 
-export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | ActorRegistry.Service> = Layer.effect(
+export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> = Layer.effect(
   Service,
   Effect.gen(function* () {
     const bus = yield* Bus.Service
     const storage = yield* Storage.Service
-    const actorReg = yield* ActorRegistry.Service
 
     const createNext = Effect.fn("Session.createNext")(function* (input: {
       id?: SessionID
@@ -463,19 +462,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
 
       yield* Effect.sync(() => SyncEvent.run(Event.Created, { sessionID: result.id, info: result }))
 
-      yield* actorReg.register({
-        sessionID: result.id,
-        actorID: "main",
-        mode: "main",
-        parentActorID: undefined,
-        agent: "main",
-        description: "main agent",
-        contextMode: "full",
-        contextWatermark: undefined,
-        background: false,
-        lifecycle: "persistent",
-        tools: "INHERIT",
-      }).pipe(Effect.ignore)
+      // Actor registration removed — Coordinator system handles session management.
 
       if (!Flag.MIMOCODE_EXPERIMENTAL_WORKSPACES) {
         // This only exist for backwards compatibility. We should not be
@@ -787,7 +774,6 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
 )
 
 export const defaultLayer = layer.pipe(
-  Layer.provide(ActorRegistry.defaultLayer),
   Layer.provide(Bus.layer),
   Layer.provide(Storage.defaultLayer),
 )

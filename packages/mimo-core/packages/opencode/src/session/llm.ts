@@ -218,7 +218,7 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/LL
 const live: Layer.Layer<
   Service,
   never,
-  Auth.Service | Config.Service | Provider.Service | Plugin.Service | Permission.Service | ActorRegistry.Service | Memory.Service
+  Auth.Service | Config.Service | Provider.Service | Plugin.Service | Permission.Service | Memory.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -227,7 +227,6 @@ const live: Layer.Layer<
     const provider = yield* Provider.Service
     const plugin = yield* Plugin.Service
     const perm = yield* Permission.Service
-    const actorReg = yield* ActorRegistry.Service
     const memory = yield* Memory.Service
 
     const buildSystemArray = Effect.fn("LLM.buildSystemArray")(function* (input: {
@@ -259,9 +258,9 @@ const live: Layer.Layer<
       // path the prompt advertises matches the path the writer actually writes).
       // Skip for system-spawned actors (e.g. checkpoint-writer): they shouldn't
       // see the user-facing memory instructions.
-      const isSystemActor = input.agentID
-        ? yield* actorReg.isSystemSpawned(SessionID.make(input.sessionID), input.agentID)
-        : false
+      // System-spawned actor check removed (Actor system replaced by Coordinator).
+      // All agents receive memory instructions.
+      const isSystemActor = false
       if (!isSystemActor) {
         const projectID =
           (yield* Effect.try({
@@ -708,7 +707,6 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Config.defaultLayer),
     Layer.provide(Provider.defaultLayer),
     Layer.provide(Plugin.defaultLayer),
-    Layer.provide(ActorRegistry.defaultLayer),
     Layer.provide(Memory.defaultLayer),
   ),
 )
