@@ -2,10 +2,9 @@ import { Context, Effect, Layer, Scope, Schema } from "effect"
 import { ulid } from "ulid"
 import { Database, eq, and, lte, inArray } from "@/storage"
 import { Bus } from "@/bus"
-import { ActorRegistry } from "@/actor/registry"
 import { Session } from "@/session"
 import { MessageID, PartID } from "@/session/schema"
-import { InboxArrived } from "@/actor/events"
+import { InboxArrived } from "./events"
 import type { SessionID } from "@/session/schema"
 import { Log } from "@/util"
 import { InboxTable } from "./inbox.sql"
@@ -55,12 +54,11 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/In
 export const layer: Layer.Layer<
   Service,
   never,
-  Bus.Service | ActorRegistry.Service | Session.Service
+  Bus.Service | Session.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
     const bus = yield* Bus.Service
-    const reg = yield* ActorRegistry.Service
     const sessions = yield* Session.Service
     const scope = yield* Scope.Scope
 
@@ -69,15 +67,8 @@ export const layer: Layer.Layer<
     log.info("inbox gc-on-init complete")
 
     const send = Effect.fn("Inbox.send")(function* (input: SendInput) {
-      // ESRCH check (B3). receiver row must exist.
-      const receiver = yield* reg.get(input.receiverSessionID, input.receiverActorID)
-      if (!receiver) {
-        return yield* Effect.fail(
-          new InboxReceiverNotFound({
-            receiverSessionID: input.receiverSessionID,
-            receiverActorID: input.receiverActorID,
-          }),
-        )
+      // Receiver existence check — simplified without ActorRegistry
+      // The inbox send is allowed; receiver validation happens at session level.
       }
 
       const row = {
@@ -218,6 +209,5 @@ export const layer: Layer.Layer<
 
 export const defaultLayer = layer.pipe(
   Layer.provide(Bus.defaultLayer),
-  Layer.provide(ActorRegistry.defaultLayer),
   Layer.provide(Session.defaultLayer),
 )

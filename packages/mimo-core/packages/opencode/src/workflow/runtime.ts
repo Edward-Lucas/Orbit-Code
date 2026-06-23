@@ -1,7 +1,6 @@
 import { Context, Deferred, Effect, Exit, Fiber, Layer, Scope } from "effect"
 import os from "node:os"
 import { createHash } from "node:crypto"
-import { spawnRef } from "@/actor/spawn-ref"
 import { workflowRef } from "./runtime-ref"
 import { Config } from "@/config"
 import { EffectBridge } from "@/effect"

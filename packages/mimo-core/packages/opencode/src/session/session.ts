@@ -27,7 +27,6 @@ import { SessionID, MessageID, PartID } from "./schema"
 import type { Provider } from "@/provider"
 import { Permission } from "@/permission"
 import { Global } from "@/global"
-import { ActorRegistry } from "@/actor/registry"
 import { Effect, Layer, Option, Context } from "effect"
 
 const log = Log.create({ service: "session" })

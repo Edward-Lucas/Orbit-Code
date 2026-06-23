@@ -6,9 +6,7 @@ import { Config } from "@/config"
 import { Memory } from "@/memory"
 import { MemoryFtsTable } from "@/memory/fts.sql"
 import { TaskRegistry } from "@/task/registry"
-import { ActorRegistry } from "@/actor/registry"
-import type { AgentOutcome, ForkContext } from "@/actor/spawn"
-import { spawnRef } from "@/actor/spawn-ref"
+import type { ProviderID, ModelID } from "../provider/schema"
 import { prefixCaptureRef } from "./prefix-capture-ref"
 import { Database, and, eq, or } from "@/storage"
 import { Instance } from "@/project/instance"
@@ -23,7 +21,6 @@ import { makeRuntime } from "@/effect/run-service"
 import type { ActorPromptOps } from "@/tool/actor"
 import type { ProviderID, ModelID } from "../provider/schema"
 import PROMPT_CHECKPOINT_WRITER from "@/agent/prompt/checkpoint-writer.txt"
-import { WriterCachePerf } from "@/actor/events"
 import {
   metaDir,
   checkpointPath,

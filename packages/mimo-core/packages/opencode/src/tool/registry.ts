@@ -8,7 +8,6 @@ import { GrepTool } from "./grep"
 import { HistoryTool } from "./history"
 import { MemoryTool } from "./memory"
 import { ReadTool } from "./read"
-import { ActorTool } from "./actor"
 import { TaskTool } from "./task"
 import { WorkflowTool } from "./workflow"
 import { WebFetchTool } from "./webfetch"
@@ -50,8 +49,6 @@ import { Bus } from "../bus"
 import { Agent } from "../agent/agent"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
-import { ActorRegistry } from "@/actor/registry"
-import { ActorWaiter } from "@/actor/waiter"
 import { Team } from "@/team"
 import { Memory } from "@/memory"
 import { History } from "@/history"
@@ -91,13 +88,11 @@ function warnShellFallbackOnce(id: string) {
   log.warn(`tool '${id}' configured with invocation_style='shell' but has no shell field; falling back to JSON`)
 }
 
-type ActorDef = Tool.InferDef<typeof ActorTool>
 type ReadDef = Tool.InferDef<typeof ReadTool>
 
 type State = {
   custom: Tool.Def[]
   builtin: Tool.Def[]
-  actor: ActorDef
   read: ReadDef
 }
 
@@ -121,7 +116,6 @@ export const layer = Layer.effect(
     const truncate = yield* Truncate.Service
 
     const invalid = yield* InvalidTool
-    const actor = yield* ActorTool
     const read = yield* ReadTool
     const question = yield* QuestionTool
     const lsptool = yield* LspTool
@@ -215,7 +209,6 @@ export const layer = Layer.effect(
           edit: Tool.init(edit),
           write: Tool.init(writetool),
           notebookedit: Tool.init(notebookedit),
-          actor: Tool.init(actor),
           fetch: Tool.init(webfetch),
           search: Tool.init(websearch),
           code: Tool.init(codesearch),
@@ -244,7 +237,6 @@ export const layer = Layer.effect(
             tool.edit,
             tool.write,
             tool.notebookedit,
-            tool.actor,
             tool.fetch,
             tool.search,
             tool.code,
@@ -259,7 +251,6 @@ export const layer = Layer.effect(
             tool.task,
             ...(Flag.MIMOCODE_EXPERIMENTAL_WORKFLOW_TOOL ? [tool.workflow] : []),
           ],
-          actor: tool.actor,
           read: tool.read,
         }
       }),
@@ -297,23 +288,6 @@ export const layer = Layer.effect(
 
     const describeWorkflow = Effect.fn("ToolRegistry.describeWorkflow")(function* () {
       return renderWorkflowCatalog()
-    })
-
-    const describeTask = Effect.fn("ToolRegistry.describeTask")(function* (agent: Agent.Info) {
-      const items = (yield* agents.list()).filter(
-        (item) => item.mode !== "primary" && !item.hidden,
-      )
-      const filtered = items.filter(
-        (item) => Permission.evaluate("task", item.name, agent.permission).action !== "deny",
-      )
-      const list = filtered.toSorted((a, b) => a.name.localeCompare(b.name))
-      const description = list
-        .map(
-          (item) =>
-            `- ${item.name}: ${item.description ?? "This subagent should only be called manually by the user."}`,
-        )
-        .join("\n")
-      return ["Available agent types and the tools they have access to:", description].join("\n")
     })
 
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
@@ -365,7 +339,6 @@ export const layer = Layer.effect(
             id: tool.id,
             description: [
               description,
-              tool.id === ActorTool.id ? yield* describeTask(input.agent) : undefined,
               tool.id === SkillTool.id ? yield* describeSkill(input.agent) : undefined,
               tool.id === WorkflowTool.id ? yield* describeWorkflow() : undefined,
             ]

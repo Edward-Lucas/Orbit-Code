@@ -50,9 +50,6 @@ import { Installation } from "@/installation"
 import { ShareNext } from "@/share"
 import { SessionShare } from "@/share"
 import { Npm } from "@/npm"
-import { ActorRegistry } from "@/actor/registry"
-import { ActorWaiter } from "@/actor/waiter"
-import { Actor } from "@/actor/spawn"
 import { TaskRegistry } from "@/task/registry"
 import { WorkflowRuntime } from "@/workflow/runtime"
 import { History } from "@/history"
@@ -112,9 +109,6 @@ export const AppLayer = Layer.suspend(() =>
     Installation.defaultLayer,
     ShareNext.defaultLayer,
     SessionShare.defaultLayer,
-    ActorRegistry.defaultLayer,
-    ActorWaiter.defaultLayer,
-    Actor.defaultLayer,
     TaskRegistry.defaultLayer,
     WorkflowRuntime.defaultLayer,
     Memory.defaultLayer,

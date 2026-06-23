@@ -9,8 +9,6 @@ import { NotFoundError } from "@/storage"
 import { Effect, Layer, Context } from "effect"
 import { pressureLevel, usable } from "./overflow"
 import { SessionCheckpoint } from "./checkpoint"
-import { ActorRegistry } from "@/actor/registry"
-import type { ActorPromptOps } from "@/tool/actor"
 
 const log = Log.create({ service: "session.prune" })
 

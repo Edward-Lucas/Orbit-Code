@@ -29,7 +29,6 @@ import { EffectBridge } from "@/effect"
 import { Global } from "@/global"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
-import { ActorRegistry } from "@/actor/registry"
 import { Memory } from "@/memory"
 import { isRetryableTransientError } from "./retry"
 
