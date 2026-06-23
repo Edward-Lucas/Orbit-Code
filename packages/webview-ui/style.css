@@ -250,6 +250,41 @@ body {
   font-style: italic;
 }
 
+.ai-message .typing {
+  color: var(--text-secondary);
+  animation: pulse 1.5s infinite;
+}
+
+.ai-message .error {
+  color: #f44336;
+}
+
+.ai-message pre {
+  background: var(--bg-primary);
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.ai-message code {
+  background: var(--bg-primary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+}
+
+.ai-message pre code {
+  background: transparent;
+  padding: 0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .ai-input-container {
   padding: 15px;
   border-top: 1px solid var(--border);

@@ -92,6 +92,30 @@ export class IPCClient {
   }
 
   /**
+   * AI 채팅
+   */
+  async aiChat(message: string, context?: string): Promise<string> {
+    const response = await this.send('ai.chat', { message, context });
+    return response.data?.response || '';
+  }
+
+  /**
+   * AI 모델 목록
+   */
+  async getAIModels(): Promise<any[]> {
+    const response = await this.send('ai.models');
+    return response.data || [];
+  }
+
+  /**
+   * AI 상태 확인
+   */
+  async getAIStatus(): Promise<any> {
+    const response = await this.send('ai.status');
+    return response.data || {};
+  }
+
+  /**
    * 헬스 체크
    */
   async health(): Promise<boolean> {

@@ -419,13 +419,13 @@ console.log(greet('Developer'));
     // 사용자 메시지 추가
     const userDiv = document.createElement('div');
     userDiv.className = 'ai-message user';
-    userDiv.innerHTML = `<p>${userMessage}</p>`;
+    userDiv.innerHTML = `<p>${this.escapeHtml(userMessage)}</p>`;
     messages.appendChild(userDiv);
 
-    // AI 응답 시뮬레이션
+    // 로딩 표시
     const assistantDiv = document.createElement('div');
     assistantDiv.className = 'ai-message assistant';
-    assistantDiv.innerHTML = `<p>AI가 응답을 생성하고 있습니다...</p>`;
+    assistantDiv.innerHTML = `<p class="typing">AI가 응답을 생성하고 있습니다...</p>`;
     messages.appendChild(assistantDiv);
 
     // 스크롤
@@ -434,18 +434,37 @@ console.log(greet('Developer'));
     // IPC를 통해 AI에게 전송
     try {
       const context = this.editor?.state.doc.toString() || '';
-      const response = await this.ipc.send('ai.chat', {
-        message: userMessage,
-        context: context,
-      });
+      const response = await this.ipc.aiChat(userMessage, context);
 
-      assistantDiv.innerHTML = `<p>${response.data?.response || '응답을 생성할 수 없습니다.'}</p>`;
+      // 응답 포맷팅
+      const formattedResponse = this.formatAIResponse(response);
+      assistantDiv.innerHTML = formattedResponse;
     } catch (error) {
-      assistantDiv.innerHTML = `<p>오류가 발생했습니다: ${error}</p>`;
+      assistantDiv.innerHTML = `<p class="error">오류가 발생했습니다: ${error}</p>`;
     }
 
     // 스크롤
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  private formatAIResponse(response: string): string {
+    // 코드 블록 포맷팅
+    let formatted = response.replace(/```(\w+)?\n([\s\S]*?)```/g,
+      '<pre><code class="language-$1">$2</code></pre>');
+
+    // 인라인 코드
+    formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>`);
+
+    // 줄바꿈
+    formatted = formatted.replace(/\n/g, '<br>');
+
+    return `<p>${formatted}</p>`;
   }
 }
 
