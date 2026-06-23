@@ -9,6 +9,7 @@ import { HistoryTool } from "./history"
 import { MemoryTool } from "./memory"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
+import { CoordinatorTool } from "./coordinator"
 import { WorkflowTool } from "./workflow"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
@@ -136,6 +137,7 @@ export const layer = Layer.effect(
     const historytool = yield* HistoryTool
     const memorytool = yield* MemoryTool
     const tasktool = yield* TaskTool
+    const coordinatortool = yield* CoordinatorTool
     const workflowtool = yield* WorkflowTool
     const agent = yield* Agent.Service
 
@@ -222,6 +224,7 @@ export const layer = Layer.effect(
           memory: Tool.init(memorytool),
           history: Tool.init(historytool),
           task: Tool.init(tasktool),
+          coordinator: Tool.init(coordinatortool),
           workflow: Tool.init(workflowtool),
         })
 
@@ -249,6 +252,7 @@ export const layer = Layer.effect(
             tool.memory,
             tool.history,
             tool.task,
+            tool.coordinator,
             ...(Flag.MIMOCODE_EXPERIMENTAL_WORKFLOW_TOOL ? [tool.workflow] : []),
           ],
           read: tool.read,
