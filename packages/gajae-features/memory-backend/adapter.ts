@@ -71,8 +71,15 @@ export function createMiMoAdapterBackend(
     ) {
       // MiMo's memory service provides search-based context injection.
       // The checkpoint system handles MEMORY.md injection separately.
-      // Return undefined to let the default system prompt handle it.
-      return undefined;
+      // Try to get memory root for future context injection.
+      try {
+        const root = await mimoMemory.root();
+        // Root path available for future memory context injection.
+        // Currently returns undefined to let the default system prompt handle it.
+        return undefined;
+      } catch {
+        return undefined;
+      }
     },
 
     async clear(_agentDir: string, _cwd: string, _sessionID?: string) {
