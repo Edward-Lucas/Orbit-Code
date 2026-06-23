@@ -173,6 +173,27 @@ export function createRuntimeStore(): {
 
 // ─── State Queries ───────────────────────────────────────────────────────────
 
+function cloneResult(result: ExperimentResult): ExperimentResult {
+  return {
+    ...result,
+    metrics: { ...result.metrics },
+    asi: result.asi ? structuredClone(result.asi) : undefined,
+    modifiedPaths: [...result.modifiedPaths],
+    scopeDeviations: [...result.scopeDeviations],
+  };
+}
+
+export function cloneExperimentState(state: ExperimentState): ExperimentState {
+  return {
+    ...state,
+    results: state.results.map(cloneResult),
+    secondaryMetrics: state.secondaryMetrics.map((m) => ({ ...m })),
+    scopePaths: [...state.scopePaths],
+    offLimits: [...state.offLimits],
+    constraints: [...state.constraints],
+  };
+}
+
 export function currentResults(
   results: ExperimentResult[],
   segment: number,
@@ -225,6 +246,27 @@ export function findBestKeptMetric(
   return best;
 }
 
+export function findBaselineSecondary(
+  results: ExperimentResult[],
+  segment: number,
+  knownMetrics: MetricDef[],
+): NumericMetricMap {
+  const baseline = findBaselineResult(results, segment);
+  const values: NumericMetricMap = baseline ? { ...baseline.metrics } : {};
+  for (const metric of knownMetrics) {
+    if (values[metric.name] !== undefined) continue;
+    for (const result of currentResults(results, segment)) {
+      if (result.flagged) continue;
+      const value = result.metrics[metric.name];
+      if (value !== undefined) {
+        values[metric.name] = value;
+        break;
+      }
+    }
+  }
+  return values;
+}
+
 // ─── Confidence ──────────────────────────────────────────────────────────────
 
 export function sortedMedian(values: number[]): number {
@@ -271,6 +313,8 @@ export function computeConfidence(
 
 export const METRIC_LINE_PREFIX = "METRIC";
 export const ASI_LINE_PREFIX = "ASI";
+export const EXPERIMENT_MAX_LINES = 10;
+export const EXPERIMENT_MAX_BYTES = 4 * 1024;
 
 const DENIED_KEY_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -420,4 +464,59 @@ export function ensureNumericMetricMap(
     }
   }
   return out;
+}
+
+export function mergeAsi(
+  base: ASIData | null,
+  override: ASIData | undefined,
+): ASIData | undefined {
+  if (!base && !override) return undefined;
+  return {
+    ...(base ?? {}),
+    ...(override ?? {}),
+  };
+}
+
+export function sanitizeAsi(
+  value: { [key: string]: unknown } | undefined,
+): ASIData | undefined {
+  if (!value) return undefined;
+  const result: ASIData = {};
+  for (const [key, entryValue] of Object.entries(value)) {
+    if (DENIED_KEY_NAMES.has(key)) continue;
+    const sanitized = sanitizeAsiValue(entryValue);
+    if (sanitized !== undefined) {
+      result[key] = sanitized;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function sanitizeAsiValue(value: unknown): ASIValue | undefined {
+  if (value === null) return null;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  )
+    return value;
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => sanitizeAsiValue(item))
+      .filter((item): item is NonNullable<typeof item> => item !== undefined);
+    return items;
+  }
+  if (typeof value === "object") {
+    const objectValue = value as { [key: string]: unknown };
+    const result: ASIData = {};
+    for (const [key, entryValue] of Object.entries(objectValue)) {
+      if (DENIED_KEY_NAMES.has(key)) continue;
+      const sanitized = sanitizeAsiValue(entryValue);
+      if (sanitized !== undefined) {
+        result[key] = sanitized;
+      }
+    }
+    return result;
+  }
+  return undefined;
 }
