@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "orbit-code",
+  "description": "Orbit Code - Enhanced MiMo-Code with gajae-code features",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.11",
+  "scripts": {
+    "dev": "bun run --cwd packages/mimo-core script/dev.ts",
+    "dev:desktop": "bun --cwd packages/mimo-core/packages/desktop dev",
+    "dev:web": "bun --cwd packages/mimo-core/packages/app dev",
+    "lint": "oxlint",
+    "typecheck": "bun turbo typecheck",
+    "sync:mimo": "bash scripts/sync-mimo.sh",
+    "patch:mimo": "bash scripts/patch-mimo.sh",
+    "test": "echo 'do not run tests from root' && exit 1"
+  },
+  "workspaces": {
+    "packages": [
+      "packages/mimo-core/packages/*",
+      "packages/mimo-core/packages/console/*",
+      "packages/mimo-core/packages/sdk/js",
+      "packages/mimo-core/packages/slack",
+      "packages/gajae-features/*"
+    ]
+  },
+  "devDependencies": {
+    "turbo": "2.8.13"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Edward-Lucas/orbit-code"
+  },
+  "license": "MIT"
+}
