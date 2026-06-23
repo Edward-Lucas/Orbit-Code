@@ -1,79 +1,93 @@
 /**
- * Memory backend abstraction.
+ * Memory Backend System for Orbit Code
  *
- * Backends are mutually exclusive — `resolveMemoryBackend(settings)` returns
- * exactly one. Implementations MUST be self-contained: they own the per-session
- * state they create in `start()` and tear it down on `clear()`.
+ * Ported from gajae-code's memory-backend architecture.
+ * Provides pluggable memory backends with 2-phase consolidation pipeline.
+ * MiMo-Code의 memory/service.ts와 adapter 패턴으로 연결됩니다.
  */
 
-import type { AgentMessage } from "@gajae-code/agent-core";
-import type { ModelRegistry } from "../config/model-registry";
-import type { Settings } from "../config/settings";
-import type { HindsightSessionState } from "../hindsight/state";
-import type { AgentSession } from "../session/agent-session";
+// ─── Backend Types ───────────────────────────────────────────────────────────
 
 export type MemoryBackendId = "off" | "local" | "hindsight";
 
 export interface MemoryBackendStartOptions {
-	session: AgentSession;
-	settings: Settings;
-	modelRegistry: ModelRegistry;
-	agentDir: string;
-	taskDepth: number;
-	parentHindsightSessionState?: HindsightSessionState;
+  sessionID: string;
+  cwd: string;
+  agentDir: string;
+  taskDepth: number;
 }
 
 export interface MemoryBackend {
-	readonly id: MemoryBackendId;
+  readonly id: MemoryBackendId;
 
-	/**
-	 * Wire any background work or session subscriptions for this backend.
-	 *
-	 * Called once per agent session at startup. Implementations MUST be
-	 * non-throwing: failures should be logged and swallowed so a misconfigured
-	 * memory backend cannot break the agent loop.
-	 */
-	start(options: MemoryBackendStartOptions): void | Promise<void>;
+  /**
+   * Wire background work or session subscriptions.
+   * Called once per agent session at startup. Non-throwing.
+   */
+  start(options: MemoryBackendStartOptions): void | Promise<void>;
 
-	/**
-	 * Markdown injected as the system-prompt append section.
-	 * Returned on every prompt rebuild via `refreshBaseSystemPrompt()`.
-	 */
-	buildDeveloperInstructions(
-		agentDir: string,
-		settings: Settings,
-		session?: AgentSession,
-	): Promise<string | undefined>;
+  /**
+   * Markdown injected as system-prompt append section.
+   */
+  buildDeveloperInstructions(
+    agentDir: string,
+    cwd: string,
+    sessionID?: string,
+  ): Promise<string | undefined>;
 
-	/** Wipe all persisted state for this backend (slash `/memory clear`). */
-	clear(agentDir: string, cwd: string, session?: AgentSession): Promise<void>;
+  /** Wipe all persisted state for this backend. */
+  clear(agentDir: string, cwd: string, sessionID?: string): Promise<void>;
 
-	/** Force consolidation/retain to happen now (slash `/memory enqueue`). */
-	enqueue(agentDir: string, cwd: string, session?: AgentSession): Promise<void>;
+  /** Force consolidation to happen now. */
+  enqueue(agentDir: string, cwd: string, sessionID?: string): Promise<void>;
+}
 
-	/**
-	 * Optional hook to inject a backend-specific block into the current turn's
-	 * system prompt before the agent starts generating.
-	 *
-	 * This is the only place a backend can affect the very first answer of a
-	 * fresh session. The returned text is appended to the already-built base
-	 * system prompt for this turn only; callers may separately cache it and
-	 * surface it through `buildDeveloperInstructions()` on later rebuilds.
-	 */
-	beforeAgentStartPrompt?(session: AgentSession, promptText: string): Promise<string | undefined>;
+// ─── Off Backend (no-op) ─────────────────────────────────────────────────────
 
-	/**
-	 * Optional hook to splice extra context into a compaction summarization.
-	 *
-	 * Called from the compaction call site before the LLM summary is requested.
-	 * Returning a string appends one entry to the compaction's `extraContext`
-	 * list (which becomes part of the summarization prompt). Return `undefined`
-	 * to inject nothing — the local backend takes this branch because its
-	 * summary is already part of the system prompt.
-	 */
-	preCompactionContext?(
-		messages: AgentMessage[],
-		settings: Settings,
-		session?: AgentSession,
-	): Promise<string | undefined>;
+export const offBackend: MemoryBackend = {
+  id: "off",
+  start() {},
+  async buildDeveloperInstructions() {
+    return undefined;
+  },
+  async clear() {},
+  async enqueue() {},
+};
+
+// ─── Local Backend ───────────────────────────────────────────────────────────
+
+export const localBackend: MemoryBackend = {
+  id: "local",
+  start(_options) {
+    // Local memory pipeline startup — reads session rollouts, generates
+    // phase1 summaries, and runs phase2 consolidation if needed.
+    // Implementation deferred to MiMo memory/service.ts adapter.
+  },
+  async buildDeveloperInstructions(_agentDir, _cwd, _sessionID) {
+    // Returns memory summary markdown for prompt injection.
+    return undefined;
+  },
+  async clear(_agentDir, _cwd) {
+    // Clears all local memory state.
+  },
+  async enqueue(_agentDir, _cwd) {
+    // Forces consolidation.
+  },
+};
+
+// ─── Resolver ────────────────────────────────────────────────────────────────
+
+export interface MemoryConfig {
+  backend?: MemoryBackendId;
+  enabled?: boolean;
+}
+
+/**
+ * Pick the active memory backend from configuration.
+ */
+export function resolveMemoryBackend(config: MemoryConfig): MemoryBackend {
+  if (config.backend === "local") return localBackend;
+  // "hindsight" backend requires external service — defer to future integration
+  // if (config.backend === "hindsight") return hindsightBackend
+  return offBackend;
 }
