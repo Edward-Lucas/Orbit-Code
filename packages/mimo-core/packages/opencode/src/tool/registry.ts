@@ -7,6 +7,7 @@ import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
 import { HistoryTool } from "./history"
 import { MemoryTool } from "./memory"
+import { MemoryBackendTool } from "./memory-backend"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
 import { CoordinatorTool } from "./coordinator"
@@ -136,6 +137,7 @@ export const layer = Layer.effect(
     const skilltool = yield* SkillTool
     const historytool = yield* HistoryTool
     const memorytool = yield* MemoryTool
+    const memorybackendtool = yield* MemoryBackendTool
     const tasktool = yield* TaskTool
     const coordinatortool = yield* CoordinatorTool
     const workflowtool = yield* WorkflowTool
@@ -222,6 +224,7 @@ export const layer = Layer.effect(
           planexit: Tool.init(planexit),
           planenter: Tool.init(planenter),
           memory: Tool.init(memorytool),
+          memorybackend: Tool.init(memorybackendtool),
           history: Tool.init(historytool),
           task: Tool.init(tasktool),
           coordinator: Tool.init(coordinatortool),
@@ -250,6 +253,7 @@ export const layer = Layer.effect(
             tool.planexit,
             tool.planenter,
             tool.memory,
+            tool.memorybackend,
             tool.history,
             tool.task,
             tool.coordinator,

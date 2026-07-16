@@ -1,7 +1,8 @@
 import * as Tool from "./tool"
 import z from "zod"
 import { Effect } from "effect"
-import { CoordinatorStateStore } from "../../../gajae-features/coordinator-mcp/server"
+import { CoordinatorStateStore } from "../../../../../gajae-features/coordinator-mcp/server"
+import { Memory } from "@/memory"
 
 const id = "coordinator"
 
@@ -65,6 +66,25 @@ const operationSchema = z.discriminatedUnion("action", [
 // Singleton state store — lives for the lifetime of the process.
 const store = new CoordinatorStateStore()
 
+/**
+ * Search memory for context relevant to a task description.
+ * Returns formatted memory context block or empty string if no results.
+ */
+const searchMemoryContext = (task: string): Effect.Effect<string> =>
+  Effect.gen(function* () {
+    const results = yield* Memory.Service.use((svc) =>
+      svc.search({ query: task, limit: 5 }),
+    ).pipe(Effect.catch(() => Effect.succeed([])))
+
+    if (results.length === 0) return ""
+
+    const lines = results.map((r) => {
+      const typeTag = r.type !== "free" ? ` [${r.type}]` : ""
+      return `- ${r.path}${typeTag}: ${r.snippet}`
+    })
+    return "\n\n## Related Memory Context\n" + lines.join("\n")
+  })
+
 export const CoordinatorTool = Tool.define(
   id,
   Effect.succeed({
@@ -76,9 +96,9 @@ export const CoordinatorTool = Tool.define(
       "  start_session  — Start a new coordinator session",
       "  send_prompt    — Send a prompt to a session (creates a turn)",
       "  read_turn      — Read turn status and result",
-      "  delegate_plan  — Delegate consensus planning to a new session",
-      "  delegate_execute — Delegate execution to a new session",
-      "  delegate_team  — Delegate parallel team execution",
+      "  delegate_plan  — Delegate consensus planning to a new session (with memory context)",
+      "  delegate_execute — Delegate execution to a new session (with memory context)",
+      "  delegate_team  — Delegate parallel team execution (with memory context)",
       "  watch_events   — Watch the coordinator event journal",
     ].join("\n"),
     parameters: z.object({
@@ -141,31 +161,42 @@ export const CoordinatorTool = Tool.define(
           }
 
           case "delegate_plan": {
-            const result = store.delegatePlan({ cwd: op.cwd, task: op.task })
+            // Search memory for relevant context before delegation.
+            const memoryContext = yield* searchMemoryContext(op.task)
+            const enrichedTask = op.task + memoryContext
+            const result = store.delegatePlan({ cwd: op.cwd, task: enrichedTask })
             output = [
               `Plan delegation started`,
               `Session: ${result.sessionId}`,
               `Turn: ${result.turnId}`,
               `Task: ${op.task.slice(0, 200)}`,
+              memoryContext ? `Memory context: ${memoryContext.split("\n").length - 2} entries injected` : "Memory context: none found",
             ].join("\n")
             break
           }
 
           case "delegate_execute": {
-            const result = store.delegateExecute({ cwd: op.cwd, task: op.task })
+            // Search memory for relevant context before delegation.
+            const memoryContext = yield* searchMemoryContext(op.task)
+            const enrichedTask = op.task + memoryContext
+            const result = store.delegateExecute({ cwd: op.cwd, task: enrichedTask })
             output = [
               `Execute delegation started`,
               `Session: ${result.sessionId}`,
               `Turn: ${result.turnId}`,
               `Task: ${op.task.slice(0, 200)}`,
+              memoryContext ? `Memory context: ${memoryContext.split("\n").length - 2} entries injected` : "Memory context: none found",
             ].join("\n")
             break
           }
 
           case "delegate_team": {
+            // Search memory for relevant context before delegation.
+            const memoryContext = yield* searchMemoryContext(op.task)
+            const enrichedTask = op.task + memoryContext
             const result = store.delegateTeam({
               cwd: op.cwd,
-              task: op.task,
+              task: enrichedTask,
               workerCount: op.worker_count,
             })
             output = [
@@ -173,6 +204,7 @@ export const CoordinatorTool = Tool.define(
               `Leader: ${result.leaderSessionId}`,
               `Workers: ${result.workerSessionIds.join(", ")}`,
               `Task: ${op.task.slice(0, 200)}`,
+              memoryContext ? `Memory context: ${memoryContext.split("\n").length - 2} entries injected` : "Memory context: none found",
             ].join("\n")
             break
           }

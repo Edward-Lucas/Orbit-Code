@@ -47,6 +47,22 @@ export const InstanceBootstrap = Effect.gen(function* () {
     Effect.forkDetach,
   )
 
+  // Initialize the gajae memory backend (pluggable backend system).
+  // This bridges gajae's MemoryBackend interface with MiMo's FTS5 memory service.
+  yield* Memory.Service.use((svc) =>
+    svc.startBackend({
+      sessionID: Instance.session?.id ?? "bootstrap",
+      cwd: Instance.directory,
+      agentDir: Instance.directory,
+      taskDepth: 0,
+    }),
+  ).pipe(
+    Effect.catch((err: unknown) =>
+      Effect.sync(() => Log.Default.warn("memory backend start failed", { error: String(err) })),
+    ),
+    Effect.forkDetach,
+  )
+
   yield* Bus.Service.use((svc) =>
     svc.subscribeCallback(Command.Event.Executed, async (payload) => {
       if (payload.properties.name === Command.Default.INIT) {

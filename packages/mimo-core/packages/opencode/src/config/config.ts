@@ -334,6 +334,13 @@ const InfoSchema = Schema.Struct({
         description:
           "Index Claude Code memory (~/.claude/projects/<slug>/memory) and expose under scope='cc'. Default: false. Note: when enabled, every mimocode agent (build/explore/subagents) can search these memories via the builtin `memory` tool — including CC's `type: user` (your role/preferences) and `type: feedback` (your guidance) categories. CC originally writes them for future CC sessions; flipping this on widens the consumer set to mimocode agents on the same machine. Leave disabled (default) if you don't want personal context recallable from a prompt-injection-vulnerable agent.",
       }),
+      backend: Schema.optional(Schema.Literal("off", "local", "hindsight")).annotate({
+        description:
+          "Memory backend to use. 'off' disables memory, 'local' uses MiMo's FTS5-based memory (default), 'hindsight' is reserved for future external service integration. Default: 'local'.",
+      }),
+      enabled: Schema.optional(Schema.Boolean).annotate({
+        description: "Enable or disable the memory backend. Default: true.",
+      }),
     }),
   ),
   history: Schema.optional(ConfigHistory.Info).annotate({

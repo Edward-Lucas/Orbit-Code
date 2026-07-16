@@ -6,6 +6,12 @@ import { Database } from "../storage"
 import { Config } from "../config"
 import { reconcileMemory } from "./reconcile"
 import { buildFtsQuery } from "./fts-query"
+import {
+  resolveMemoryBackendWithAdapter,
+  type MiMoMemoryService,
+  type MemoryBackendConfig,
+} from "../../../../../gajae-features/memory-backend/adapter"
+import type { MemoryBackend } from "../../../../../gajae-features/memory-backend/types"
 
 type SearchRow = {
   path: string
@@ -28,6 +34,21 @@ export interface Interface {
   }) => Effect.Effect<
     Array<{ path: string; snippet: string; score: number; scope: string; scope_id: string; type: string }>
   >
+  /** The active memory backend (gajae-features integration). */
+  readonly backend: () => Effect.Effect<MemoryBackend>
+  /** Start the memory backend (call once at session startup). */
+  readonly startBackend: (options: {
+    sessionID: string
+    cwd: string
+    agentDir: string
+    taskDepth: number
+  }) => Effect.Effect<void>
+  /** Get developer instructions from the active backend for prompt injection. */
+  readonly buildDeveloperInstructions: (
+    agentDir: string,
+    cwd: string,
+    sessionID?: string,
+  ) => Effect.Effect<string | undefined>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Memory") {}
@@ -133,10 +154,53 @@ export const layer: Layer.Layer<Service, never, Config.Service> = Layer.effect(
       return mapped.filter((r, i) => i === 0 || r.score >= cutoff).slice(0, limit)
     })
 
+    // ─── Memory Backend (gajae-features integration) ─────────────────────
+    // Create the MiMoMemoryService adapter that bridges to our Effect-based service.
+    const mimoAdapter: MiMoMemoryService = {
+      root: () => Effect.runPromise(rootEff),
+      reconcile: () => Effect.runPromise(reconcile),
+      search: (input) => Effect.runPromise(search(input)),
+    }
+
+    // Lazy-initialize the backend based on config.
+    let _backend: MemoryBackend | undefined
+    const getBackend = Effect.fn("Memory.backend")(function* () {
+      if (_backend) return _backend
+      const cfg = yield* config.get()
+      const backendConfig: MemoryBackendConfig = {
+        backend: cfg.memory?.backend as MemoryBackendConfig["backend"],
+        enabled: cfg.memory?.enabled ?? true,
+      }
+      _backend = resolveMemoryBackendWithAdapter(backendConfig, mimoAdapter)
+      return _backend
+    })
+
+    const startBackend = Effect.fn("Memory.startBackend")(function* (options: {
+      sessionID: string
+      cwd: string
+      agentDir: string
+      taskDepth: number
+    }) {
+      const backend = yield* getBackend
+      yield* Effect.promise(() => Promise.resolve(backend.start(options)))
+    })
+
+    const buildDeveloperInstructions = Effect.fn("Memory.buildDeveloperInstructions")(function* (
+      agentDir: string,
+      cwd: string,
+      sessionID?: string,
+    ) {
+      const backend = yield* getBackend
+      return yield* Effect.promise(() => backend.buildDeveloperInstructions(agentDir, cwd, sessionID))
+    })
+
     return Service.of({
       root: rootEff,
       reconcile,
       search,
+      backend: getBackend,
+      startBackend,
+      buildDeveloperInstructions,
     })
   }),
 )

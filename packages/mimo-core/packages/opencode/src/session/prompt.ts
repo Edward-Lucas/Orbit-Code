@@ -90,6 +90,7 @@ import { TaskRegistry } from "@/task/registry"
 import { EffectBridge } from "@/effect"
 import { Team } from "@/team"
 import { Metrics } from "@/metrics"
+import { Memory } from "@/memory"
 import { resolveInvocationStyle, type ToolStyleConfig } from "../tool/invocation-style"
 import { shouldAutoDream, shouldAutoDistill, DREAM_TASK, DISTILL_TASK, AUTO_DREAM_TITLE, AUTO_DISTILL_TITLE } from "./auto-dream"
 
@@ -2923,11 +2924,15 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               return "continue" as const
             }
 
-            const [skills, env, instructions] = yield* Effect.all([
+            const [skills, env, instructions, memoryInstructions] = yield* Effect.all([
               sys.skills(agent),
               Effect.sync(() => sys.environment(model, session.time.created)),
               instruction.system().pipe(Effect.orDie),
-            ])
+              // Get memory backend developer instructions for prompt injection.
+              Memory.Service.use((svc) =>
+                svc.buildDeveloperInstructions(Instance.directory, Instance.directory, sessionID),
+              ).pipe(Effect.catch(() => Effect.succeed(undefined))),
+            ] as const)
             // Surface which instruction files (CLAUDE.md, AGENTS.md, ...) were loaded.
             // Only for primary sessions (subagents would be noisy) and once per session.
             if (!session.parentID && !instructionsNotified.has(sessionID)) {
@@ -2942,6 +2947,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               ...env,
               ...(skills ? [skills] : []),
               ...instructions.content,
+              ...(memoryInstructions ? [memoryInstructions] : []),
               ...(format.type === "json_schema" ? [STRUCTURED_OUTPUT_SYSTEM_PROMPT] : []),
             ]
             // Note: `buildLLMRequestPrefix` also returns a `tools` field, but we
