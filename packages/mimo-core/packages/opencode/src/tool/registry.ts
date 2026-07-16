@@ -11,6 +11,14 @@ import { MemoryBackendTool } from "./memory-backend"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
 import { CoordinatorTool } from "./coordinator"
+import { AutoresearchTool } from "./autoresearch"
+import {
+  collectDiscoverableTools,
+  buildDiscoverableToolSearchIndex,
+  searchDiscoverableTools,
+  type DiscoverableToolSearchResult,
+  type RawTool,
+} from "../../../../../gajae-features/tool-discovery/index"
 import { WorkflowTool } from "./workflow"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
@@ -104,6 +112,8 @@ export interface Interface {
   readonly named: () => Effect.Effect<{ actor: ActorDef; read: ReadDef }>
   readonly tools: (model: { providerID: ProviderID; modelID: ModelID; agent: Agent.Info }) => Effect.Effect<Tool.Def[]>
   readonly reload: () => Effect.Effect<void>
+  /** Search tools by natural language query using BM25. */
+  readonly search: (query: string, limit?: number) => Effect.Effect<DiscoverableToolSearchResult[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/ToolRegistry") {}
@@ -140,6 +150,7 @@ export const layer = Layer.effect(
     const memorybackendtool = yield* MemoryBackendTool
     const tasktool = yield* TaskTool
     const coordinatortool = yield* CoordinatorTool
+    const autoresearchtool = yield* AutoresearchTool
     const workflowtool = yield* WorkflowTool
     const agent = yield* Agent.Service
 
@@ -228,6 +239,7 @@ export const layer = Layer.effect(
           history: Tool.init(historytool),
           task: Tool.init(tasktool),
           coordinator: Tool.init(coordinatortool),
+          autoresearch: Tool.init(autoresearchtool),
           workflow: Tool.init(workflowtool),
         })
 
@@ -257,6 +269,7 @@ export const layer = Layer.effect(
             tool.history,
             tool.task,
             tool.coordinator,
+            tool.autoresearch,
             ...(Flag.MIMOCODE_EXPERIMENTAL_WORKFLOW_TOOL ? [tool.workflow] : []),
           ],
           read: tool.read,
@@ -372,7 +385,28 @@ export const layer = Layer.effect(
       yield* InstanceState.invalidate(state)
     })
 
-    return Service.of({ ids, all, named, tools, reload })
+    // ─── Tool Search (BM25) ─────────────────────────────────────────────────
+    const search: Interface["search"] = Effect.fn("ToolRegistry.search")(function* (
+      query: string,
+      limit: number = 10,
+    ) {
+      const s = yield* InstanceState.get(state)
+      const allTools = [...s.builtin, ...s.custom]
+
+      // Convert Tool.Def to RawTool for the search index
+      const rawTools: RawTool[] = allTools.map((t) => ({
+        name: t.id,
+        label: t.id,
+        description: typeof t.description === "string" ? t.description : "",
+        parameters: t.parameters,
+      }))
+
+      const discoverable = collectDiscoverableTools(rawTools)
+      const index = buildDiscoverableToolSearchIndex(discoverable)
+      return searchDiscoverableTools(index, query, limit)
+    })
+
+    return Service.of({ ids, all, named, tools, reload, search })
   }),
 )
 

@@ -136,8 +136,8 @@ export async function renameApprovedPlanFile(options: RenameApprovedPlanFileOpti
 		throw new Error("Artifacts directory and session ID are required for plan file rename.")
 	}
 
-	const resolvedSource = path.join(artifactsDir, sessionId, planFilePath.replace(/^local:\/+/", ""))
-	const resolvedDestination = path.join(artifactsDir, sessionId, finalPlanFilePath.replace(/^local:\/+/", ""))
+	const resolvedSource = path.join(artifactsDir, sessionId, planFilePath.replace(/^local:\/+/, ""))
+	const resolvedDestination = path.join(artifactsDir, sessionId, finalPlanFilePath.replace(/^local:\/+/, ""))
 
 	if (resolvedSource === resolvedDestination) return
 

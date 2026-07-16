@@ -10,6 +10,11 @@ import { Instance } from "../project/instance"
 import { type SessionID, MessageID, PartID } from "../session/schema"
 import ENTER_DESCRIPTION from "./plan-enter.txt"
 import EXIT_DESCRIPTION from "./plan-exit.txt"
+import {
+  resolvePlanTitle,
+  normalizePlanTitle,
+  humanizePlanTitle,
+} from "../../../../../gajae-features/plan-mode/index"
 
 function getLastModel(sessionID: SessionID) {
   for (const item of MessageV2.stream(sessionID, { agentID: "*" })) {
