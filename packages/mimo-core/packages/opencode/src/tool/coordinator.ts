@@ -3,6 +3,7 @@ import z from "zod"
 import { Effect } from "effect"
 import { CoordinatorStateStore } from "../../../../../gajae-features/coordinator-mcp/server"
 import { Memory } from "@/memory"
+import { executeDelegatedTask } from "./coordinator-spawn"
 
 const id = "coordinator"
 
@@ -165,13 +166,25 @@ export const CoordinatorTool = Tool.define(
             const memoryContext = yield* searchMemoryContext(op.task)
             const enrichedTask = op.task + memoryContext
             const result = store.delegatePlan({ cwd: op.cwd, task: enrichedTask })
+
+            // Execute the delegated task with a sub-agent
+            const execResult = yield* executeDelegatedTask(store, {
+              sessionId: result.sessionId,
+              turnId: result.turnId,
+              task: enrichedTask,
+              cwd: op.cwd,
+              agentType: "general",
+            })
+
             output = [
-              `Plan delegation started`,
+              `Plan delegation ${execResult.status}`,
               `Session: ${result.sessionId}`,
               `Turn: ${result.turnId}`,
               `Task: ${op.task.slice(0, 200)}`,
               memoryContext ? `Memory context: ${memoryContext.split("\n").length - 2} entries injected` : "Memory context: none found",
-            ].join("\n")
+              execResult.result ? `\nResult:\n${execResult.result.slice(0, 500)}` : null,
+              execResult.error ? `\nError: ${execResult.error}` : null,
+            ].filter(Boolean).join("\n")
             break
           }
 
@@ -180,13 +193,25 @@ export const CoordinatorTool = Tool.define(
             const memoryContext = yield* searchMemoryContext(op.task)
             const enrichedTask = op.task + memoryContext
             const result = store.delegateExecute({ cwd: op.cwd, task: enrichedTask })
+
+            // Execute the delegated task with a sub-agent
+            const execResult = yield* executeDelegatedTask(store, {
+              sessionId: result.sessionId,
+              turnId: result.turnId,
+              task: enrichedTask,
+              cwd: op.cwd,
+              agentType: "general",
+            })
+
             output = [
-              `Execute delegation started`,
+              `Execute delegation ${execResult.status}`,
               `Session: ${result.sessionId}`,
               `Turn: ${result.turnId}`,
               `Task: ${op.task.slice(0, 200)}`,
               memoryContext ? `Memory context: ${memoryContext.split("\n").length - 2} entries injected` : "Memory context: none found",
-            ].join("\n")
+              execResult.result ? `\nResult:\n${execResult.result.slice(0, 500)}` : null,
+              execResult.error ? `\nError: ${execResult.error}` : null,
+            ].filter(Boolean).join("\n")
             break
           }
 
@@ -199,13 +224,25 @@ export const CoordinatorTool = Tool.define(
               task: enrichedTask,
               workerCount: op.worker_count,
             })
+
+            // Execute the leader task with a sub-agent
+            const leaderResult = yield* executeDelegatedTask(store, {
+              sessionId: result.leaderSessionId,
+              turnId: store.getTurn(result.leaderSessionId)?.turnId ?? "",
+              task: enrichedTask,
+              cwd: op.cwd,
+              agentType: "general",
+            })
+
             output = [
-              `Team delegation started`,
+              `Team delegation ${leaderResult.status}`,
               `Leader: ${result.leaderSessionId}`,
               `Workers: ${result.workerSessionIds.join(", ")}`,
               `Task: ${op.task.slice(0, 200)}`,
               memoryContext ? `Memory context: ${memoryContext.split("\n").length - 2} entries injected` : "Memory context: none found",
-            ].join("\n")
+              leaderResult.result ? `\nLeader Result:\n${leaderResult.result.slice(0, 500)}` : null,
+              leaderResult.error ? `\nError: ${leaderResult.error}` : null,
+            ].filter(Boolean).join("\n")
             break
           }
 
