@@ -45,14 +45,26 @@ import { ensureProcessMetadata } from "./util/mimo-process"
 const processMetadata = ensureProcessMetadata("main")
 
 process.on("unhandledRejection", (e) => {
+  console.error("UNHANDLED REJECTION:")
+  console.error(e)
+  if (e instanceof Error) {
+    console.error("Stack:", e.stack)
+  }
   Log.Default.error("rejection", {
     e: errorMessage(e),
+    stack: e instanceof Error ? e.stack : undefined,
   })
 })
 
 process.on("uncaughtException", (e) => {
+  console.error("UNCAUGHT EXCEPTION:")
+  console.error(e)
+  if (e instanceof Error) {
+    console.error("Stack:", e.stack)
+  }
   Log.Default.error("exception", {
     e: errorMessage(e),
+    stack: e instanceof Error ? e.stack : undefined,
   })
 })
 

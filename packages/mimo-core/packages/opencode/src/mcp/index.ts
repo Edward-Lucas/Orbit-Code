@@ -277,7 +277,10 @@ export const layer = Layer.effect(
               const client = new Client({ name: "mimocode", version: InstallationVersion })
               return withTimeout(client.connect(t), timeout).then(() => client)
             },
-            catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+            catch: (e) => {
+              console.error("MCP connect error:", e)
+              return e instanceof Error ? e : new Error(String(e))
+            },
           }),
         (t, exit) => (Exit.isFailure(exit) ? Effect.tryPromise(() => t.close()).pipe(Effect.ignore) : Effect.void),
       )
