@@ -69,7 +69,6 @@ export const layer: Layer.Layer<
     const send = Effect.fn("Inbox.send")(function* (input: SendInput) {
       // Receiver existence check — simplified without ActorRegistry
       // The inbox send is allowed; receiver validation happens at session level.
-      }
 
       const row = {
         id: ulid(),

@@ -90,7 +90,6 @@ import { TaskRegistry } from "@/task/registry"
 import { EffectBridge } from "@/effect"
 import { Team } from "@/team"
 import { Metrics } from "@/metrics"
-import { Memory } from "@/memory"
 import { resolveInvocationStyle, type ToolStyleConfig } from "../tool/invocation-style"
 import { shouldAutoDream, shouldAutoDistill, DREAM_TASK, DISTILL_TASK, AUTO_DREAM_TITLE, AUTO_DISTILL_TITLE } from "./auto-dream"
 
@@ -2746,193 +2745,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             // Fork agent support deferred to Coordinator integration.
             const isForkAgent = false
 
-            // Fork path removed (Actor system replaced by Coordinator).
-            // isForkAgent is always false; fork logic is dead code.
-              const ownNew = msgs.filter(
-                (m) => m.info.id > forkCtx.watermarkMsgID && m.info.agentID === lastUser.agentID,
-              )
-              const ownNewModelMsgs = yield* MessageV2.toModelMessagesEffect(ownNew, model)
-              const prebuiltSystem = forkCtx.system
-              const modelMsgs: ModelMessage[] = [...forkCtx.inheritedMessages, ...ownNewModelMsgs]
-              // additions is empty for fork agents: system is taken verbatim from
-              // forkCtx.system. Passed as `system` to handle.process for logging/replay.
-              const additions: string[] = []
-              // Note: fork uses `tools` from resolveTools (not `forkCtx.tools`) — runtime
-              // tool dispatch needs execute closures, which `forkCtx.tools` does not carry.
-              // Schema parity with parent is currently a consequence of checkpoint-writer
-              // having no toolAllowlist (Task 2.6 + agent.test.ts guard). See ForkContext.tools
-              // JSDoc in packages/opencode/src/actor/spawn.ts for the full contract.
-              const queryParts =
-                msgs.findLast((m) => m.info.role === "user" && m.info.id === lastUser.id)?.parts ?? []
-              const query = userQueryText(queryParts)
-              const preQuery = {
-                cancel: undefined as boolean | undefined,
-                cancelReason: undefined as string | undefined,
-              }
-              yield* plugin.trigger(
-                "session.userQuery.pre",
-                { sessionID, agentID: resolvedAgentID, step, messageID: lastUser.id, query },
-                preQuery,
-              )
-              if (preQuery.cancel) {
-                cancelled = true
-                cancelReason = preQuery.cancelReason
-                handle.message.error = new MessageV2.AbortedError({
-                  message: preQuery.cancelReason ?? "Step cancelled by plugin",
-                }).toObject()
-                handle.message.finish = "cancelled"
-                yield* sessions.updateMessage(handle.message)
-                yield* plugin.trigger(
-                  "session.userQuery.post",
-                  {
-                    sessionID,
-                    agentID: resolvedAgentID,
-                    step,
-                    messageID: lastUser.id,
-                    query,
-                    assistantMessageID: handle.message.id,
-                    finish: handle.message.finish,
-                    error: preQuery.cancelReason,
-                    trajectory: trajectoryForStep(msgs, handle.message),
-                  },
-                  {},
-                )
-                return "break" as const
-              }
-              const result = yield* handle
-                .process({
-                  user: lastUser,
-                  agent,
-                  // Fork inherits the parent agent's permission (captured at spawn into
-                  // ForkContext). This drives llm.ts resolveTools/disabled() to the SAME
-                  // visible tool set as the parent → prompt-cache parity on the inherited
-                  // prefix. Scope: this affects tool VISIBILITY only; the per-call ask
-                  // ruleset (built separately in resolveTools' ask closure) is unchanged.
-                  // Parity is exact modulo non-default `session.permission`: the parent's
-                  // visibility ruleset is merge(parent.permission, session.permission)
-                  // while the fork's is merge(writer.permission, parentPermission) — so a
-                  // session-level rule pins the parent but not the fork. Still a strict
-                  // improvement over the old bespoke "*":"deny" block (which always
-                  // diverged). The `?? session.permission` is defense-in-depth only:
-                  // parentPermission is a required field (empty `[]` on a missed capture,
-                  // which `??` does NOT override), so the fallback fires solely if a future
-                  // refactor makes the field optional.
-                  permission: forkCtx.parentPermission ?? session.permission,
-                  sessionID,
-                  parentSessionID: session.parentID,
-                  system: additions,
-                  prebuiltSystem,
-                  messages: [...modelMsgs, ...(isLastStep ? [{ role: "user" as const, content: MAX_STEPS }] : [])],
-                  tools,
-                  model,
-                  toolChoice: isLastStep ? "none" : format.type === "json_schema" ? "required" : undefined,
-                  agentID: lastUser.agentID,
-                })
-                .pipe(
-                  Effect.onExit((exit) =>
-                    plugin
-                      .trigger(
-                        "session.userQuery.post",
-                        {
-                          sessionID,
-                          agentID: resolvedAgentID,
-                          step,
-                          messageID: lastUser.id,
-                          query,
-                          assistantMessageID: handle.message.id,
-                          finish: handle.message.finish,
-                          error: Exit.isFailure(exit)
-                            ? Cause.pretty(exit.cause)
-                            : sessionErrorText(handle.message.error),
-                          finalText: assistantFinalText(handle.message, MessageV2.parts(handle.message.id)),
-                          trajectory: trajectoryForStep(msgs, handle.message),
-                        },
-                        {},
-                      )
-                      .pipe(Effect.ignore),
-                  ),
-                )
 
-              if (
-                result === "continue" &&
-                (yield* autoContinueOutputLength({ lastUser, assistant: handle.message }))
-              ) {
-                return "continue" as const
-              }
-
-              if (result === "text-repeat") {
-                if (yield* handleTextRepeat({ lastUser })) return "continue" as const
-                return "break" as const
-              }
-
-              if (structured !== undefined) {
-                handle.message.structured = structured
-                handle.message.finish = handle.message.finish ?? "stop"
-                yield* sessions.updateMessage(handle.message)
-                return "break" as const
-              }
-
-              const forkClassification = classifyAssistantStep({
-                phase: "after-process",
-                lastUser,
-                assistant: handle.message,
-                parts: MessageV2.parts(handle.message.id),
-                processResult: result,
-              })
-              if (forkClassification.type === "filtered") {
-                yield* writeContentFilterError({ assistant: handle.message })
-                return "break" as const
-              }
-              if (forkClassification.type === "failed") {
-                yield* writeModelError({ assistant: handle.message, reason: forkClassification.reason })
-                return "break" as const
-              }
-              if (forkClassification.type !== "continue" && !handle.message.error && format.type === "json_schema") {
-                if (yield* autoRetryStructuredOutput({ lastUser, assistant: handle.message }))
-                  return "continue" as const
-                return "break" as const
-              }
-
-              if (
-                (forkClassification.type === "think-only" || forkClassification.type === "invalid") &&
-                format.type !== "json_schema"
-              ) {
-                const reason =
-                  forkClassification.type === "invalid" ? forkClassification.reason : "think-only"
-                if (yield* autoContinueInvalidOutput({ lastUser, assistant: handle.message, reason }))
-                  return "continue" as const
-                return "break" as const
-              }
-
-              if (forkClassification.type === "final" && forkClassification.degraded)
-                yield* slog.warn("degraded final on abnormal finish", { finish: handle.message.finish })
-              if (result === "stop") return "break" as const
-              // Fork agents are always subagents (lastUser.agentID is set); use
-              // per-actor compaction on overflow (same as non-fork subagent path).
-              if (!isBoundedComputation && result === "overflow") {
-                yield* compaction
-                  .create({
-                    sessionID,
-                    agent: lastUser.agent,
-                    model: { providerID: model.providerID, modelID: model.id },
-                    auto: true,
-                    overflow: true,
-                    agentID: lastUser.agentID,
-                  })
-                  .pipe(Effect.ignore)
-              }
-              return "continue" as const
-            }
-
-            const [skills, env, instructions, memoryInstructions] = yield* Effect.all([
+            const [skills, env, instructions] = yield* Effect.all([
               sys.skills(agent),
               Effect.sync(() => sys.environment(model, session.time.created)),
               instruction.system().pipe(Effect.orDie),
-              // Get memory backend developer instructions for prompt injection.
-              Memory.Service.use((svc) =>
-                svc.buildDeveloperInstructions(Instance.directory, Instance.directory, sessionID),
-              ).pipe(Effect.catch(() => Effect.succeed(undefined))),
-            ] as const)
+            ])
             // Surface which instruction files (CLAUDE.md, AGENTS.md, ...) were loaded.
             // Only for primary sessions (subagents would be noisy) and once per session.
             if (!session.parentID && !instructionsNotified.has(sessionID)) {
@@ -2947,7 +2765,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               ...env,
               ...(skills ? [skills] : []),
               ...instructions.content,
-              ...(memoryInstructions ? [memoryInstructions] : []),
               ...(format.type === "json_schema" ? [STRUCTURED_OUTPUT_SYSTEM_PROMPT] : []),
             ]
             // Note: `buildLLMRequestPrefix` also returns a `tools` field, but we

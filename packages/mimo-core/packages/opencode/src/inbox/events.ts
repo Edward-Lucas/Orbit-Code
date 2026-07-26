@@ -4,14 +4,18 @@
  * Replaces @/actor/events dependency with standalone event definitions.
  */
 
-import { Bus } from "@/bus"
-import type { SessionID } from "@/session/schema"
+import z from "zod"
+import { BusEvent } from "@/bus/bus-event"
+import { SessionID } from "@/session/schema"
 
-export const InboxArrived = Bus.event<{
-  receiverSessionID: SessionID
-  receiverActorID: string
-  senderSessionID?: SessionID
-  senderActorID?: string
-  inboxID: string
-  type: string
-}>("InboxArrived")
+export const InboxArrived = BusEvent.define(
+  "inbox.arrived",
+  z.object({
+    receiverSessionID: SessionID.zod,
+    receiverActorID: z.string(),
+    senderSessionID: SessionID.zod.optional(),
+    senderActorID: z.string().optional(),
+    inboxID: z.string(),
+    type: z.string(),
+  }),
+)
