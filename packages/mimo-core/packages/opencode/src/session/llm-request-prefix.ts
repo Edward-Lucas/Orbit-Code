@@ -73,7 +73,6 @@ export const buildLLMRequestPrefix = Effect.fn("Session.buildLLMRequestPrefix")(
   const tools: Record<string, AITool> = {}
   for (const item of toolDefs) {
     if (!item.parameters) {
-      console.warn(`Tool ${item.id} has undefined parameters, skipping`)
       continue
     }
     const schema = ProviderTransform.schema(input.model, safeToJSONSchema(item.parameters))

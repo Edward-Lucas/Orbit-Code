@@ -683,7 +683,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         agent: input.agent,
       })) {
         if (!item.parameters) {
-          console.warn(`Tool ${item.id} has undefined parameters, skipping`)
           continue
         }
         const schema = ProviderTransform.schema(input.model, safeToJSONSchema(item.parameters))

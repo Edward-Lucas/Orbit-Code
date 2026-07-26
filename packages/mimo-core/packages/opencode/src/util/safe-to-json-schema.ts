@@ -43,14 +43,12 @@ export function safeToJSONSchema(schema: unknown, options?: Parameters<typeof z.
 
   // Validate schema structure before conversion
   if (!isValidSchema(schema)) {
-    console.warn("safeToJSONSchema: invalid schema structure detected, returning minimal schema")
     return { type: "object", properties: {} }
   }
 
   try {
     return z.toJSONSchema(schema as Parameters<typeof z.toJSONSchema>[0], options)
-  } catch (e) {
-    console.warn("safeToJSONSchema error:", e instanceof Error ? e.message : String(e))
+  } catch {
     return { type: "object", properties: {} }
   }
 }
