@@ -65,55 +65,60 @@ bun run dev
 
 Orbit Code를 다른 프로젝트 디렉토리에서 실행하는 방법입니다.
 
-### PowerShell (권장)
+### 방법 1: PATH에 추가 (권장)
+
+Orbit Code의 `bin` 디렉토리를 PATH에 추가하면 어디서든 `orbit` 명령어를 사용할 수 있습니다.
 
 ```powershell
-# Orbit Code가 설치된 디렉토리에서
-cd C:\Users\AtlasServer\Documents\MiFun\orbit_code
+# 1. Orbit Code 다운로드/클론
+git clone https://github.com/Edward-Lucas/Orbit-Code.git C:\Orbit-Code
+cd C:\Orbit-Code\packages\mimo-core
+bun install
 
-# 다른 프로젝트에서 실행
-powershell -ExecutionPolicy Bypass -File bin\orbit.ps1
+# 2. PATH에 bin 디렉토리 추가 (영구)
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Orbit-Code\bin", "User")
+
+# 3. 새 PowerShell 창에서 실행
+cd C:\Users\MyProject
+orbit
 ```
 
-### CMD
-
-```cmd
-# Orbit Code가 설치된 디렉토리에서
-cd C:\Users\AtlasServer\Documents\MiFun\orbit_code
-
-# 다른 프로젝트에서 실행
-bin\orbit.cmd
-```
-
-### 전역 명령어 등록
-
-PowerShell 프로필에 alias를 추가하면 어디서든 `orbit` 명령어를 사용할 수 있습니다:
+### 방법 2: PowerShell alias 등록
 
 ```powershell
 # PowerShell 프로필 열기
 notepad $PROFILE
 
-# 다음 줄 추가:
-function orbit { & "C:\Users\AtlasServer\Documents\MiFun\orbit_code\bin\orbit.ps1" @args }
+# 다음 줄 추가 (경로를 실제 Orbit Code 설치 경로로 변경)
+function orbit { & "C:\Orbit-Code\bin\orbit.ps1" @args }
 
 # 프로필 다시 로드
 . $PROFILE
 ```
 
-이제 다른 프로젝트에서 실행:
+### 방법 3: 직접 실행
 
 ```powershell
-cd C:\Users\AtlasServer\Documents\MyProject
-orbit
+# PowerShell에서
+powershell -ExecutionPolicy Bypass -File "C:\Orbit-Code\bin\orbit.ps1"
+
+# CMD에서
+C:\Orbit-Code\bin\orbit.cmd
+
+# Bash에서
+bash C:/Orbit-Code/bin/orbit
 ```
 
 ### 실행 시 동작
 
-다른 디렉토리에서 실행하면 해당 디렉토리의 파일을 읽고 편집할 수 있습니다:
+어떤 디렉토리에서든 실행하면 해당 디렉토리가 작업 공간으로 선택됩니다:
 
 ```
+PS C:\Users\MyProject> orbit
+
 ● Accessing workspace:
-│ C:\Users\AtlasServer\Documents\MyProject   ← 현재 디렉토리
+│
+│  C:\Users\MyProject                    ← 현재 디렉토리
 │
 ◆ Yes, I trust this folder
 ○ No, exit

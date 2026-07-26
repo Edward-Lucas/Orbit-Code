@@ -3,6 +3,12 @@
 #
 # This script runs Orbit Code from any directory by
 # passing the current directory as the project argument.
+#
+# Installation:
+#   1. Download/clone Orbit Code to any directory
+#   2. Add the bin directory to your PATH, or
+#   3. Create an alias in your PowerShell profile:
+#      function orbit { & "C:\path\to\orbit_code\bin\orbit.ps1" @args }
 
 param(
     [Parameter(ValueFromRemainingArguments)]
