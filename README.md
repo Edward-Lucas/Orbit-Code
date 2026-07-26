@@ -124,6 +124,43 @@ PS C:\Users\MyProject> orbit
 ○ No, exit
 ```
 
+### 제거 방법
+
+#### PATH에서 제거
+
+```powershell
+# 현재 PATH 확인
+[Environment]::GetEnvironmentVariable("Path", "User")
+
+# Orbit Code 경로 제거
+$currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+$newPath = ($currentPath -split ';' | Where-Object { $_ -ne 'C:\Orbit-Code\bin' }) -join ';'
+[Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+```
+
+#### PowerShell alias 제거
+
+```powershell
+# PowerShell 프로필 열기
+notepad $PROFILE
+
+# 다음 줄 삭제:
+# function orbit { & "C:\Orbit-Code\bin\orbit.ps1" @args }
+
+# 프로필 다시 로드
+. $PROFILE
+```
+
+#### Orbit Code 삭제
+
+```powershell
+# 설치 디렉토리 삭제
+Remove-Item -Recurse -Force C:\Orbit-Code
+
+# 데이터 삭제 (선택)
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\opencode"
+```
+
 ---
 
 ## 프로젝트 구조
