@@ -109,7 +109,7 @@ type State = {
 export interface Interface {
   readonly ids: () => Effect.Effect<string[]>
   readonly all: () => Effect.Effect<Tool.Def[]>
-  readonly named: () => Effect.Effect<{ actor: ActorDef; read: ReadDef }>
+  readonly named: () => Effect.Effect<{ read: ReadDef }>
   readonly tools: (model: { providerID: ProviderID; modelID: ModelID; agent: Agent.Info }) => Effect.Effect<Tool.Def[]>
   readonly reload: () => Effect.Effect<void>
   /** Search tools by natural language query using BM25. */
@@ -376,7 +376,7 @@ export const layer = Layer.effect(
 
     const named: Interface["named"] = Effect.fn("ToolRegistry.named")(function* () {
       const s = yield* InstanceState.get(state)
-      return { actor: s.actor, read: s.read }
+      return { read: s.read }
     })
 
     const reload: Interface["reload"] = Effect.fn("ToolRegistry.reload")(function* () {
