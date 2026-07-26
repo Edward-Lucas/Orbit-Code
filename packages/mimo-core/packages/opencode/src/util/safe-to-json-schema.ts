@@ -1,34 +1,55 @@
 /**
  * Safe wrapper for z.toJSONSchema that handles undefined schemas
- * and Zod v4 vs v3 version mismatch.
+ * and validates schema structure before conversion.
  */
 
 import z from "zod"
-// @ts-ignore - zod/v4 is available at runtime
-import * as z4 from "zod/v4"
 
-// Check if Zod v4's toJSONSchema is available
-const z4ToJSONSchema = typeof z4?.toJSONSchema === "function" ? z4.toJSONSchema : undefined
+/**
+ * Recursively checks if a schema has all required _zod properties.
+ * Returns false if any nested schema is missing _zod.
+ */
+function isValidSchema(schema: unknown): boolean {
+  if (!schema || typeof schema !== "object") return true
+
+  const s = schema as Record<string, unknown>
+
+  // If it has _zod, check its structure
+  if (s._zod) {
+    const zodInfo = s._zod as Record<string, unknown>
+    if (!zodInfo.def) return false
+
+    // Check nested schemas in def.shape (for objects)
+    const def = zodInfo.def as Record<string, unknown>
+    if (def.shape && typeof def.shape === "object") {
+      const shape = def.shape as Record<string, unknown>
+      for (const key of Object.keys(shape)) {
+        if (!isValidSchema(shape[key])) return false
+      }
+    }
+
+    // Check nested schemas in def.in and def.out (for pipes)
+    if (def.in && !isValidSchema(def.in)) return false
+    if (def.out && !isValidSchema(def.out)) return false
+  }
+
+  return true
+}
 
 export function safeToJSONSchema(schema: unknown, options?: Parameters<typeof z.toJSONSchema>[1]): ReturnType<typeof z.toJSONSchema> {
   if (!schema) {
-    return {}
+    return { type: "object", properties: {} }
   }
 
-  // Check if this is a Zod v4 schema (has _zod property with version info)
-  const schemaObj = schema as Record<string, unknown>
-  const zodInfo = schemaObj?._zod as Record<string, unknown> | undefined
-  const isV4Schema = zodInfo?.version !== undefined && (zodInfo.version as Record<string, unknown>)?.major === 4
+  // Validate schema structure before conversion
+  if (!isValidSchema(schema)) {
+    console.warn("safeToJSONSchema: invalid schema structure detected, returning minimal schema")
+    return { type: "object", properties: {} }
+  }
 
   try {
-    if (isV4Schema && z4ToJSONSchema) {
-      // Use Zod v4's toJSONSchema for v4 schemas
-      return z4ToJSONSchema(schema, options) as ReturnType<typeof z.toJSONSchema>
-    }
-    // Fall back to Zod v3's toJSONSchema
     return z.toJSONSchema(schema as Parameters<typeof z.toJSONSchema>[0], options)
   } catch (e) {
-    // Log the error for debugging but return a minimal valid schema
     console.warn("safeToJSONSchema error:", e instanceof Error ? e.message : String(e))
     return { type: "object", properties: {} }
   }
