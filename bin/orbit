@@ -1,0 +1,19 @@
+#!/bin/bash
+# Orbit Code launcher
+# Usage: orbit [args...]
+#
+# This script runs Orbit Code from any directory by
+# temporarily changing to the project directory.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORBIT_DIR="$SCRIPT_DIR/packages/mimo-core/packages/opencode"
+ORIGINAL_DIR="$(pwd)"
+
+# Change to the Orbit Code project directory
+cd "$ORBIT_DIR"
+
+# Run Orbit Code
+bun run --conditions=browser src/index.ts "$@"
+
+# Return to the original directory
+cd "$ORIGINAL_DIR"

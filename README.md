@@ -61,6 +61,66 @@ bun run dev
 
 ---
 
+## 다른 디렉토리에서 실행하기
+
+Orbit Code를 다른 프로젝트 디렉토리에서 실행하는 방법입니다.
+
+### PowerShell (권장)
+
+```powershell
+# Orbit Code가 설치된 디렉토리에서
+cd C:\Users\AtlasServer\Documents\MiFun\orbit_code
+
+# 다른 프로젝트에서 실행
+powershell -ExecutionPolicy Bypass -File bin\orbit.ps1
+```
+
+### CMD
+
+```cmd
+# Orbit Code가 설치된 디렉토리에서
+cd C:\Users\AtlasServer\Documents\MiFun\orbit_code
+
+# 다른 프로젝트에서 실행
+bin\orbit.cmd
+```
+
+### 전역 명령어 등록
+
+PowerShell 프로필에 alias를 추가하면 어디서든 `orbit` 명령어를 사용할 수 있습니다:
+
+```powershell
+# PowerShell 프로필 열기
+notepad $PROFILE
+
+# 다음 줄 추가:
+function orbit { & "C:\Users\AtlasServer\Documents\MiFun\orbit_code\bin\orbit.ps1" @args }
+
+# 프로필 다시 로드
+. $PROFILE
+```
+
+이제 다른 프로젝트에서 실행:
+
+```powershell
+cd C:\Users\AtlasServer\Documents\MyProject
+orbit
+```
+
+### 실행 시 동작
+
+다른 디렉토리에서 실행하면 해당 디렉토리의 파일을 읽고 편집할 수 있습니다:
+
+```
+● Accessing workspace:
+│ C:\Users\AtlasServer\Documents\MyProject   ← 현재 디렉토리
+│
+◆ Yes, I trust this folder
+○ No, exit
+```
+
+---
+
 ## 프로젝트 구조
 
 ```
