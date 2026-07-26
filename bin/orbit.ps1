@@ -2,7 +2,7 @@
 # Usage: orbit [args...]
 #
 # This script runs Orbit Code from any directory by
-# temporarily changing to the project directory.
+# passing the current directory as the project argument.
 
 param(
     [Parameter(ValueFromRemainingArguments)]
@@ -14,16 +14,14 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $scriptDir
 $orbitDir = Join-Path $projectRoot "packages\mimo-core\packages\opencode"
 
-$originalDir = Get-Location
+# Store the current working directory
+$currentDir = Get-Location
 
-try {
-    # Change to the Orbit Code project directory
-    Set-Location $orbitDir
+# Change to the Orbit Code project directory for module resolution
+Set-Location $orbitDir
 
-    # Run Orbit Code
-    & bun run --conditions=browser src/index.ts @Arguments
-}
-finally {
-    # Return to the original directory
-    Set-Location $originalDir
-}
+# Run Orbit Code with the current directory as the project argument
+& bun run --conditions=browser src/index.ts "$currentDir" @Arguments
+
+# Return to the original directory
+Set-Location $currentDir
