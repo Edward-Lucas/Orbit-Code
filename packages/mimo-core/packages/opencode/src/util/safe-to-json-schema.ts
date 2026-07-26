@@ -4,28 +4,11 @@
  */
 
 import z from "zod"
+// @ts-ignore - zod/v4 is available at runtime
+import * as z4 from "zod/v4"
 
-// Import Zod v4's toJSONSchema statically
-let z4ToJSONSchema: ((schema: unknown, options?: unknown) => unknown) | undefined
-try {
-  // @ts-ignore - zod/v4 is available at runtime
-  const z4 = await import("zod/v4")
-  if (z4 && typeof z4.toJSONSchema === "function") {
-    z4ToJSONSchema = z4.toJSONSchema
-  }
-} catch {
-  // Zod v4 not available, will use v3
-}
-
-// Use Bun's top-level await to wait for the import
-// Fallback: check if global zod v4 is available
-if (!z4ToJSONSchema) {
-  try {
-    // @ts-ignore
-    const z4 = globalThis.__zod_v4 || (await import("zod/v4").catch(() => null))
-    if (z4?.toJSONSchema) z4ToJSONSchema = z4.toJSONSchema
-  } catch {}
-}
+// Check if Zod v4's toJSONSchema is available
+const z4ToJSONSchema = typeof z4?.toJSONSchema === "function" ? z4.toJSONSchema : undefined
 
 export function safeToJSONSchema(schema: unknown, options?: Parameters<typeof z.toJSONSchema>[1]): ReturnType<typeof z.toJSONSchema> {
   if (!schema) {
@@ -44,8 +27,9 @@ export function safeToJSONSchema(schema: unknown, options?: Parameters<typeof z.
     }
     // Fall back to Zod v3's toJSONSchema
     return z.toJSONSchema(schema as Parameters<typeof z.toJSONSchema>[0], options)
-  } catch {
-    // Silently return empty object on error
-    return {}
+  } catch (e) {
+    // Log the error for debugging but return a minimal valid schema
+    console.warn("safeToJSONSchema error:", e instanceof Error ? e.message : String(e))
+    return { type: "object", properties: {} }
   }
 }
