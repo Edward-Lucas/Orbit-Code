@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "bun@1.3.11",
   "scripts": {
-    "dev": "bun run --cwd packages/mimo-core script/dev.ts",
+    "dev": "bun run --cwd packages/mimo-core/packages/opencode dev",
     "dev:desktop": "bun --cwd packages/mimo-core/packages/desktop dev",
     "dev:web": "bun --cwd packages/mimo-core/packages/app dev",
     "lint": "oxlint",
