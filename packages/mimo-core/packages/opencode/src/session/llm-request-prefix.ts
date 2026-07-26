@@ -9,6 +9,7 @@ import type { Provider } from "../provider"
 import { LLM } from "./llm"
 import { ToolRegistry } from "../tool"
 import { ProviderTransform } from "../provider"
+import { safeToJSONSchema } from "../util/safe-to-json-schema"
 
 /**
  * Build the LLM request prefix (system + tools + inheritedMessages) from the
@@ -71,7 +72,11 @@ export const buildLLMRequestPrefix = Effect.fn("Session.buildLLMRequestPrefix")(
   })
   const tools: Record<string, AITool> = {}
   for (const item of toolDefs) {
-    const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
+    if (!item.parameters) {
+      console.warn(`Tool ${item.id} has undefined parameters, skipping`)
+      continue
+    }
+    const schema = ProviderTransform.schema(input.model, safeToJSONSchema(item.parameters))
     tools[item.id] = tool({
       description: item.description,
       inputSchema: jsonSchema(schema),

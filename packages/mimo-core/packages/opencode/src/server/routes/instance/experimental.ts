@@ -17,6 +17,7 @@ import { lazy } from "@/util/lazy"
 import { Effect, Option } from "effect"
 import { Agent } from "@/agent/agent"
 import { jsonRequest, runRequest } from "./trace"
+import { safeToJSONSchema } from "@/util/safe-to-json-schema"
 
 const ConsoleOrgOption = z.object({
   accountID: z.string(),
@@ -213,7 +214,7 @@ export const ExperimentalRoutes = lazy(() =>
           tools.map((t) => ({
             id: t.id,
             description: t.description,
-            parameters: z.toJSONSchema(t.parameters),
+            parameters: safeToJSONSchema(t.parameters),
           })),
         )
       },

@@ -92,6 +92,7 @@ import { Team } from "@/team"
 import { Metrics } from "@/metrics"
 import { resolveInvocationStyle, type ToolStyleConfig } from "../tool/invocation-style"
 import { shouldAutoDream, shouldAutoDistill, DREAM_TASK, DISTILL_TASK, AUTO_DREAM_TITLE, AUTO_DISTILL_TITLE } from "./auto-dream"
+import { safeToJSONSchema } from "../util/safe-to-json-schema"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -681,7 +682,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         providerID: input.model.providerID,
         agent: input.agent,
       })) {
-        const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
+        if (!item.parameters) {
+          console.warn(`Tool ${item.id} has undefined parameters, skipping`)
+          continue
+        }
+        const schema = ProviderTransform.schema(input.model, safeToJSONSchema(item.parameters))
         tools[item.id] = tool({
           description: item.description,
           inputSchema: jsonSchema(schema),
