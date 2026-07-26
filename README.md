@@ -124,6 +124,46 @@ PS C:\Users\MyProject> orbit
 ○ No, exit
 ```
 
+---
+
+## 업데이트
+
+### Git pull (개발자)
+
+```powershell
+# Orbit Code 디렉토리로 이동
+cd C:\Orbit-Code
+
+# 최신 변경사항 가져오기
+git pull origin main
+
+# 의존성 업데이트
+cd packages\mimo-core
+bun install
+```
+
+### 새로 클론 (일반 사용자)
+
+```powershell
+# 기존 삭제
+Remove-Item -Recurse -Force C:\Orbit-Code
+
+# 새로 클론
+git clone https://github.com/Edward-Lucas/Orbit-Code.git C:\Orbit-Code
+
+# 의존성 설치
+cd C:\Orbit-Code\packages\mimo-core
+bun install
+```
+
+### ZIP 다운로드
+
+1. https://github.com/Edward-Lucas/Orbit-Code 접속
+2. **Code** → **Download ZIP** 클릭
+3. 압축 해제 후 `packages\mimo-core`에서 `bun install`
+
+---
+
 ### 제거 방법
 
 #### PATH에서 제거
